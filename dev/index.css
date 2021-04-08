@@ -1,0 +1,57 @@
+/*#ADE292*/
+.ss-option-open {
+  font-size:16px;
+  height: 18px;
+  width: 18px;
+  background:#a488c9;
+  color:black;
+  text-align: center;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.ss-option-closed {
+  font-size:16px;
+  height: 18px;
+  width: 18px;
+  background:#a488c9;
+  color:black;
+  text-align: center;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.ss-forced-cell {
+  font-size:48px;
+  height: 54px;
+  width: 54px;
+  background:#a488c9;
+  color:black;
+  text-align: center;
+  vertical-align: middle;
+  cursor: pointer;
+  overflow: hidden;
+  border: solid 1px black;
+}
+
+.ss-cell-container {
+  display: inline-grid;
+  grid-auto-flow: row;
+  grid-template-columns: repeat(3, auto);
+  grid-template-rows: repeat(3, auto);
+  border: solid 1px black;
+}
+
+.ss-sudoku-border {
+  background: #4120A9;
+}
+
+.ss-board-container {
+  display: inline-grid;
+  grid-auto-flow: row;
+  grid-template-columns: repeat(3, auto) 5px repeat(3, auto) 5px repeat(3, auto);
+  grid-template-rows: repeat(3, auto) 5px repeat(3, auto) 5px repeat(3, auto);
+  border-radius: 30px;
+  border: solid 15px indigo;
+}
+
