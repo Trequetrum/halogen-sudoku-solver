@@ -3,20 +3,28 @@ module App.HC.Board where
 import Prelude
 
 import App.HC.Cell as HCCell
+import App.Update (Update(..))
 import Data.Array (concat, mapWithIndex, (..))
 import Data.Int (toNumber)
+import Data.Tuple (Tuple)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Math ((%))
-import Sudoku.Common (Board, Cell, Index, basicGroup, boardRoot, boardSize, toCol, toRow)
+import Sudoku.Common (Board, Cell, Index, Option, boardRoot, boardSize, toCol, toRow)
 import Sudoku.Format (beforeSudokuBorder)
 import Type.Prelude (Proxy(..))
 import Utility (inc)
 
-type State = Board
+type Input = Update Board
 
-data Action = Update 
+data Output = ToggleOn (Tuple Index Option) 
+  | ToggleOff (Tuple Index Option) 
+  | SetTo (Tuple Index Cell)
+
+type State = Update Board
+
+data Action = Raise Output
 
 type Slots = ( cell :: ∀ query. H.Slot query Cell Int )
 
@@ -37,7 +45,7 @@ render state = HH.div
   $ concat $ mapWithIndex makeHCell state
 
 handleAction :: ∀ cs o m. Action → H.HalogenM State Action cs o m Unit
-handleAction Update = do
+handleAction (Raise n) = do
   pure unit
 
 makeHCell :: ∀ m. Index -> Cell -> Array (H.ComponentHTML Action Slots m)
@@ -55,6 +63,9 @@ borderCell = HH.div [ HP.classes [HH.ClassName "ss-sudoku-border" ] ] []
 internalBorders :: Int
 internalBorders = boardRoot - 1
 
+-- | Lets us put an empty row after the last cell in a right-most box
+-- | For boardsize of 9, this is index 26, and 53, which are the last cells in the
+-- | 2nd and 5th row
 customBottomSudokuBoxBorder :: Int -> Boolean
 customBottomSudokuBoxBorder index =
   beforeSudokuBorder toRow index &&
@@ -63,12 +74,3 @@ customBottomSudokuBoxBorder index =
   where
     pos = inc $ toNumber $ toCol index
     root = toNumber boardRoot 
-
-customBottomSudokuBoxBorder' :: Int -> Boolean
-customBottomSudokuBoxBorder' 26 = true
-customBottomSudokuBoxBorder' 53 = true
-customBottomSudokuBoxBorder' _  = false
-
--- A nice way to display cells in a sudoku board is to treat the borders
--- as special cells
--- isSudokuBoarder :: 

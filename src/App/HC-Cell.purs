@@ -2,38 +2,45 @@ module App.HC.Cell where
 
 import Prelude
 
+import App.Update (Update(..))
+import Data.Maybe (Maybe(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Sudoku.Common (Cell, Option, allOptions, allOptionsCell, countOptions, firstOption, hasOption, toCell, toggleOptions)
+import Sudoku.Common (Cell, Option, allOptions, countOptions, firstOption, hasOption, toCell, toggleOptions)
 import Sudoku.Format (optionString)
 import Web.UIEvent.MouseEvent (MouseEvent, ctrlKey)
+
+type Input = Update Cell
+
+data Output = ToggleOn Option | ToggleOff Option | SetTo Cell
 
 data State = Unconstrained Cell | Constrained Option
 
 data Action = Bounce 
   | Unconstrain 
   | Toggle Option 
-  | Constrain Option
-
-isConstrained :: State -> Boolean
-isConstrained (Constrained _) = true
-isConstrained (Unconstrained _) = false
+  | Force Option
+  | Receive Input
 
 component :: ∀ query m. 
-  H.Component query Cell Cell m
+  H.Component query Input Output m
 component =
   H.mkComponent 
-    { initialState
+    { initialState: updateState
     , render 
-    , eval: H.mkEval H.defaultEval { handleAction = handleAction }
+    , eval: H.mkEval H.defaultEval 
+      { handleAction = handleAction 
+      , receive = receive
+      }
     }
 
-initialState :: Cell -> State
-initialState cell 
+updateState :: Input -> State
+updateState (New cell)
   | countOptions cell == 1 = Constrained $ firstOption cell
   | otherwise = Unconstrained cell
+updateState (Update cell) = Unconstrained cell
 
 render :: ∀ slots m. 
   State -> H.ComponentHTML Action slots m
@@ -71,33 +78,55 @@ clickConstrained evt = if ctrlKey evt
 
 clickOption :: Option -> MouseEvent -> Action
 clickOption option evt = if ctrlKey evt
-  then Constrain option
+  then Force option
   else Toggle option
 
-handleAction :: ∀ slots m. Action → H.HalogenM State Action slots Cell m Unit
+handleAction :: ∀ slots m. Action → H.HalogenM State Action slots Output m Unit
 handleAction Bounce = do 
   pure unit
 
 handleAction Unconstrain = do
-  H.put $ Unconstrained allOptionsCell
-  H.raise allOptionsCell
+  state <- H.get
+  case state of
+    (Constrained stateOption) ->
+      H.put $ Unconstrained $ toCell stateOption
+    _ -> handleAction Bounce
 
 handleAction (Toggle option) = do
   state <- H.get
   case state of
-    (Unconstrained stateCell) -> do 
+    (Unconstrained stateCell) -> do
       let update = toggleOptions (toCell option) stateCell
-      H.put $ initialState update
-      H.raise update
+      let output = if hasOption option stateCell
+        then ToggleOn option
+        else ToggleOff option
+      H.put $ updateState $ New update
+      H.raise output
     _ -> handleAction Bounce
 
-handleAction (Constrain option) = do 
+handleAction (Force option) = do 
   state <- H.get
   case state of
     (Unconstrained stateCell) -> 
       if hasOption option stateCell 
       then do
         H.put $ Constrained option
-        H.raise $ toCell option
+        H.raise $ SetTo $ toCell option
       else handleAction Bounce
     _ -> handleAction Bounce
+
+handleAction (Receive new@(New _)) = H.put $ updateState new
+handleAction (Receive (Update newCell)) = do
+  state <- H.get
+  case state of
+    (Constrained stateOption) ->
+      if countOptions newCell == 1 && firstOption newCell == stateOption
+      then handleAction Bounce
+      else H.put $ Unconstrained newCell
+    (Unconstrained stateCell) -> 
+      if stateCell == newCell
+      then handleAction Bounce
+      else H.put $ Unconstrained newCell
+
+receive :: Input -> Maybe Action
+receive = Just <<< Receive
