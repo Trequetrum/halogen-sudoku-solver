@@ -93,7 +93,6 @@ norvigBruteForce = backtrackingBruteForce
   , enforceHiddenNTuples 1
   ]
 
-
 ladderTupleBruteForce :: Strategy
 ladderTupleBruteForce = backtrackingBruteForce
   selectMinOption ladderTuples

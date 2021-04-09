@@ -213,6 +213,9 @@ startingPuzzle' = Tuple { metaData: {}, metaBoard: [] } startingBoard'
 hardBoardPuzzle :: Puzzle
 hardBoardPuzzle = fromRight dummyPuzzle $ parsePuzzle hardBoardString
 
+startingPuzzleSolved :: Puzzle
+startingPuzzleSolved = Tuple { metaData: {}, metaBoard: [] } startingBoardSolved
+
 startingBoardSolved :: Board
 startingBoardSolved = coerce
   [ 128,256,8,32,64,2,4,1,16

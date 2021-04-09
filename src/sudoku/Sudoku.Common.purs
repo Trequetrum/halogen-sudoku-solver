@@ -135,6 +135,15 @@ bNot = bitwiseCellComplement
 toCell :: Option -> Cell
 toCell n = Cell $ 1 `Bi.shl` (coerce n - 1)
 
+setOption :: Option -> Cell -> Cell
+setOption = toCell >>> setOptions
+
+setOptions :: Cell -> Cell -> Cell
+setOptions = (.|.)
+
+dropOption :: Option -> Cell -> Cell
+dropOption = toCell >>> dropOptions
+
 dropOptions :: Cell -> Cell -> Cell
 dropOptions options cell = bNot options .&. cell
 

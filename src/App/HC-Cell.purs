@@ -2,7 +2,6 @@ module App.HC.Cell where
 
 import Prelude
 
-import App.Update (Update(..))
 import Data.Maybe (Maybe(..))
 import Halogen as H
 import Halogen.HTML as HH
@@ -12,20 +11,31 @@ import Sudoku.Common (Cell, Option, allOptions, countOptions, firstOption, hasOp
 import Sudoku.Format (optionString)
 import Web.UIEvent.MouseEvent (MouseEvent, ctrlKey)
 
-type Input = Update Cell
+type Slot id = H.Slot Query Output id
 
-data Output = ToggleOn Option | ToggleOff Option | SetTo Cell
+data Query a
+  = Constrain a
 
-data State = Unconstrained Cell | Constrained Option
+type Input = Cell
 
-data Action = Bounce 
+data Output 
+  = ToggleOn Option 
+  | ToggleOff Option 
+  | SetTo Cell
+
+data State 
+  = Unconstrained Cell 
+  | Constrained Option
+
+data Action 
+  = Bounce
   | Unconstrain 
   | Toggle Option 
   | Force Option
   | Receive Input
 
-component :: ∀ query m. 
-  H.Component query Input Output m
+component :: ∀ m. 
+  H.Component Query Input Output m
 component =
   H.mkComponent 
     { initialState: updateState
@@ -33,14 +43,14 @@ component =
     , eval: H.mkEval H.defaultEval 
       { handleAction = handleAction 
       , receive = receive
+      , handleQuery = handleQuery
       }
     }
 
 updateState :: Input -> State
-updateState (New cell)
+updateState cell 
   | countOptions cell == 1 = Constrained $ firstOption cell
   | otherwise = Unconstrained cell
-updateState (Update cell) = Unconstrained cell
 
 render :: ∀ slots m. 
   State -> H.ComponentHTML Action slots m
@@ -81,6 +91,15 @@ clickOption option evt = if ctrlKey evt
   then Force option
   else Toggle option
 
+-- We write a function to handle queries when they arise.
+handleQuery :: forall a slots m. Query a -> H.HalogenM State Action slots Output m (Maybe a)
+handleQuery (Constrain a) = do
+  state <- H.get
+  case state of
+    (Unconstrained stateCell) -> H.put $ updateState stateCell
+    _ -> handleAction Bounce
+  pure (Just a)
+
 handleAction :: ∀ slots m. Action → H.HalogenM State Action slots Output m Unit
 handleAction Bounce = do 
   pure unit
@@ -100,7 +119,7 @@ handleAction (Toggle option) = do
       let output = if hasOption option stateCell
         then ToggleOn option
         else ToggleOff option
-      H.put $ updateState $ New update
+      H.put $ updateState update
       H.raise output
     _ -> handleAction Bounce
 
@@ -112,11 +131,13 @@ handleAction (Force option) = do
       then do
         H.put $ Constrained option
         H.raise $ SetTo $ toCell option
+      else if countOptions stateCell == 1
+      then do
+        H.put $ Constrained $ firstOption stateCell
       else handleAction Bounce
     _ -> handleAction Bounce
 
-handleAction (Receive new@(New _)) = H.put $ updateState new
-handleAction (Receive (Update newCell)) = do
+handleAction (Receive newCell) = do
   state <- H.get
   case state of
     (Constrained stateOption) ->

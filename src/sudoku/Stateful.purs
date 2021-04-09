@@ -1,9 +1,13 @@
 module Stateful where
 
+import Data.Functor
+
 data Stateful a =
   Advancing a
   | Stable a
   | Finished a
+
+derive instance functorStateful :: Functor Stateful
 
 unwrapStateful :: forall a. Stateful a -> a
 unwrapStateful (Advancing a) = a

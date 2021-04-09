@@ -1,4 +1,25 @@
-/*#ADE292*/
+
+.ss-solver-layout h1 {
+  grid-area: header;
+  text-align: center;
+}
+
+.ss-solver-layout {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 200px auto 50px;
+  grid-template-rows: auto;
+  grid-template-areas: 
+    "header  header header"
+    "actions board  ...   ";
+}
+
+.ss-actions-container {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+}
+
 .ss-option-open {
   font-size:16px;
   height: 18px;
@@ -47,6 +68,9 @@
 }
 
 .ss-board-container {
+  grid-area: board;
+  align-self: start;
+  justify-self: start;
   display: inline-grid;
   grid-auto-flow: row;
   grid-template-columns: repeat(3, auto) 5px repeat(3, auto) 5px repeat(3, auto);
