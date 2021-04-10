@@ -9,6 +9,7 @@ import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (fromMaybe, maybe)
 import Data.Tuple (Tuple(..), snd)
+import Debug (spy)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE

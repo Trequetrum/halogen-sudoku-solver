@@ -3,6 +3,7 @@ module App.HC.Cell where
 import Prelude
 
 import Data.Maybe (Maybe(..))
+import Debug (spy)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -101,7 +102,7 @@ handleQuery (Constrain a) = do
   pure (Just a)
 
 handleAction :: ∀ slots m. Action → H.HalogenM State Action slots Output m Unit
-handleAction Bounce = do 
+handleAction Bounce = do
   pure unit
 
 handleAction Unconstrain = do
@@ -117,13 +118,13 @@ handleAction (Toggle option) = do
     (Unconstrained stateCell) -> do
       let update = toggleOptions (toCell option) stateCell
       let output = if hasOption option stateCell
-        then ToggleOn option
-        else ToggleOff option
+        then ToggleOff option
+        else ToggleOn option
       H.put $ updateState update
       H.raise output
     _ -> handleAction Bounce
 
-handleAction (Force option) = do 
+handleAction (Force option) = do
   state <- H.get
   case state of
     (Unconstrained stateCell) -> 
