@@ -1,0 +1,8 @@
+#!/bin/bash
+
+npm run build-prod 
+rm -rf docs 
+mkdir -p docs 
+touch docs/.nojekyll 
+cp -a dist/. docs/ 
+sed -ri 's/(href|src)="\/index\.(.{8})\.(css|js)"/\1="index\.\2\.\3"/g' docs/index.html
