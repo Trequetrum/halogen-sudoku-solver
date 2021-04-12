@@ -2,10 +2,11 @@ module Test.Basic.Data where
 
 import Prelude
 
-import Sudoku.Board (Board(..))
 import Data.Either (fromRight)
+import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
 import Safe.Coerce (coerce)
+import Sudoku.Board (Board, fromCells, unconstrainedBoard)
 import Sudoku.Cell.Internal (Cell(..))
 import Sudoku.Puzzle (Puzzle)
 import Sudoku.Puzzle as Puzz
@@ -168,7 +169,7 @@ easyBoardStringsX50 =
 -}
 
 startingBoard :: Board
-startingBoard = coerce
+startingBoard = fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 511,511,8,32,64,2,511,511,511
   , 16,511,511,128,511,511,511,256,32
   , 511,32,4,511,8,511,511,511,128
@@ -181,7 +182,7 @@ startingBoard = coerce
   ]
 
 startingBoard' :: Board
-startingBoard' = coerce
+startingBoard' = fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 509,509,8,32,64,2,509,509,509
   , 16,511,511,128,511,511,511,256,32
   , 511,32,4,511,8,511,511,511,128
@@ -194,7 +195,8 @@ startingBoard' = coerce
   ]
 
 dummyPuzzle :: Puzzle
-dummyPuzzle = Tuple { metaData: {}, metaBoard: [] } $ coerce
+dummyPuzzle = Tuple { metaData: {}, metaBoard: [] } $ 
+  fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 1,1,1,1,1,1,1,1,1
   , 1,1,1,1,1,1,1,1,1
   , 1,1,1,1,1,1,1,1,1
@@ -219,7 +221,7 @@ startingPuzzleSolved :: Puzzle
 startingPuzzleSolved = Tuple { metaData: {}, metaBoard: [] } startingBoardSolved
 
 startingBoardSolved :: Board
-startingBoardSolved = coerce
+startingBoardSolved = fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 128,256,8,32,64,2,4,1,16
   , 16,2,64,128,4,1,8,256,32
   , 1,32,4,16,8,256,2,64,128
@@ -232,7 +234,7 @@ startingBoardSolved = coerce
   ]
 
 badCellboard :: Board
-badCellboard = coerce
+badCellboard = fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 511,511,8,32,64,2,511,511,511
   , 16,511,511,128,511,511,511,256,32
   , 511,32,4,511,8,511,511,511,128
@@ -245,7 +247,7 @@ badCellboard = coerce
   ]
 
 badCellboard2 :: Board
-badCellboard2 = coerce
+badCellboard2 = fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 511,511,8,32,64,2,511,511,511
   , 16,511,511,128,511,511,511,256,32
   , 511,32,4,511,8,511,511,511,128
@@ -258,7 +260,7 @@ badCellboard2 = coerce
   ]
 
 forcedCellDuplicateBoard :: Board
-forcedCellDuplicateBoard = coerce
+forcedCellDuplicateBoard = fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 256,511,8,32,64,2,511,511,511
   , 16,511,511,128,511,511,511,256,32
   , 511,32,4,511,8,511,511,511,128
@@ -271,7 +273,7 @@ forcedCellDuplicateBoard = coerce
   ]
 
 forcedCellDuplicateBoard2 :: Board
-forcedCellDuplicateBoard2 = coerce
+forcedCellDuplicateBoard2 = fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 511,511,8,32,64,2,511,511,511
   , 16,511,511,128,511,511,511,256,32
   , 511,32,4,511,8,511,511,511,128
@@ -284,7 +286,7 @@ forcedCellDuplicateBoard2 = coerce
   ]
 
 nTupleDuplicateBoard :: Board
-nTupleDuplicateBoard = coerce
+nTupleDuplicateBoard = fromMaybe unconstrainedBoard $ fromCells $ coerce
   [ 511,511,8,32,64,2,511,511,511
   , 16,511,511,128,511,511,511,256,32
   , 511,32,4,511,8,511,511,511,128

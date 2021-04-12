@@ -8,10 +8,10 @@ import Data.Maybe (fromMaybe)
 import Data.String (codePointFromChar, fromCodePointArray, joinWith)
 import Data.String as String
 import Data.Tuple (snd)
-import Math ((%))
+import Math (floor, sqrt, (%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful(..))
-import Sudoku.Board (Board, Index, boardRoot, mapBoard, toCol, toRow)
+import Sudoku.Board (Board, Index, mapBoard, toCol, toRow)
 import Sudoku.Cell (asOptions, hasOption)
 import Sudoku.Cell.Internal (Cell(..))
 import Sudoku.Option (allOptions, numOfOptions)
@@ -35,7 +35,7 @@ beforeSudokuBorder axis index =
   pos / root < root
   where
     pos = inc $ toNumber $ axis index
-    root = toNumber boardRoot 
+    root = floor $ sqrt $ toNumber numOfOptions 
 
 -------------------------------------------------------------------
 -- Convert to/from string

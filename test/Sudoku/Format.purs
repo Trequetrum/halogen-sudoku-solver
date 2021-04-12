@@ -3,11 +3,13 @@ module Test.Sudoku.Format where
 import Prelude
 
 import Data.Either (Either(..))
+import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
 import Safe.Coerce (coerce)
+import Sudoku.Board (fromCells, unconstrainedBoard)
 import Sudoku.Board as Brd
-import Sudoku.Puzzle as Puzz
 import Sudoku.Cell.Internal (Cell(..))
+import Sudoku.Puzzle as Puzz
 import Test.Basic.Data (startingBoard, startingBoardString)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
@@ -36,7 +38,8 @@ spec =
       .2.....6.|....8.4..|....1....
       $%^&*()_+-
       ...6.3.7.|5..2.....|1.4......
-      """ `shouldEqual` (Right $ coerce
+      """ `shouldEqual` (Right $ 
+      fromMaybe unconstrainedBoard $ fromCells $ coerce
       [ 8,511,511,511,511,511,128,511,16
       , 511,4,511,511,511,511,511,511,511
       , 511,511,511,64,511,511,511,511,511

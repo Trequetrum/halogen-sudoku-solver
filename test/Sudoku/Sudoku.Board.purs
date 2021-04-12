@@ -1,13 +1,14 @@
 module Test.Sudoku.Board where
 
 import Prelude
-import Sudoku.Board (Board(..), allCellsValid, batchDropOptions, boardRoot, boardSize, boundedIndex, indicesBox, indicesCol, indicesPeers, indicesRow, isSolved, isSolvedOrInvalid, noForcedPeerDuplicates, toBox, toCol, toRow)
-import Sudoku.Board as Brd
 
 import Data.Either (Either(..))
+import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
 import Safe.Coerce (coerce)
-import Sudoku.Cell (asOptions, countOptions, dropOptions, hasOption, isForced, isSuperset, notDisjoint, toCell, trustFirstOption) 
+import Sudoku.Board (allCellsValid, batchDropOptions, boundedIndex, fromCells, indicesBox, indicesCol, indicesPeers, indicesRow, isSolved, isSolvedOrInvalid, noForcedPeerDuplicates, toBox, toCol, toRow, unconstrainedBoard)
+import Sudoku.Board as Brd
+import Sudoku.Cell (asOptions, countOptions, dropOptions, hasOption, isForced, isSuperset, notDisjoint, toCell, trustFirstOption)
 import Sudoku.Cell.Internal (Cell(..), allOptionsInt)
 import Sudoku.Option (allOptions, boundedOption)
 import Test.Basic.Data (badCellboard, badCellboard2, forcedCellDuplicateBoard, forcedCellDuplicateBoard2, startingBoard, startingBoardSolved)
@@ -28,8 +29,6 @@ spec =
 -------------------------------------------------------------------
 
     describe "Invariants" do
-      it "boardSize" $ boardSize `shouldEqual` 9
-      it "boardRoot" $ boardRoot `shouldEqual` 3
       it "allOptions" $ allOptions `shouldEqual` (boundedOption <$>
         [1,2,3,4,5,6,7,8,9])
       it "allOptionsCell" $ allOptionsInt `shouldEqual` 511
@@ -125,7 +124,7 @@ spec =
     describe "Update Board State" do
       it "batchDropOptions" $ batchDropOptions 
         [Tuple (boundedIndex 0) (Cell 511), Tuple (boundedIndex 2) (Cell 503), Tuple (boundedIndex 8) (Cell 503)] 
-          startingBoard `shouldEqual` coerce
+          startingBoard `shouldEqual` (fromMaybe unconstrainedBoard $ fromCells $ coerce
           [ 0,511,8,32,64,2,511,511,8
           , 16,511,511,128,511,511,511,256,32
           , 511,32,4,511,8,511,511,511,128
@@ -135,4 +134,4 @@ spec =
           , 511,511,511,511,511,511,511,2,256
           , 511,511,1,511,511,511,64,8,4
           , 2,511,511,511,32,4,128,511,1
-          ]
+          ])

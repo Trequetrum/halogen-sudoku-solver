@@ -1,3 +1,9 @@
+-- | A puzzle bundles a board with a metaboard. 
+-- | A metaboard can be used to implement memory for a board.
+-- |
+-- | For example: An algorithm may enter data into the metaboard of a puzzle so that
+-- | the next time it runs, it will not check for patterns it has already found and
+-- | implemented for that board.
 module Sudoku.Puzzle where
 
 import Prelude

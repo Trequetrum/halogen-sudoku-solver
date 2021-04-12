@@ -1,3 +1,19 @@
+-- | Strategies for Sudoku Puzzles
+-- |
+-- | This module provides basic utilities for dealing wth sudoku strategies
+-- |
+-- | Strategy: A function that takes a board as input and returns 
+-- |     a stateful board as output. It should never add options to 
+-- |     the returned board, (what it does internally doesn't matter). 
+-- | *# Advancing: A strategy returns an advancing board if it has 
+-- |     removed at least one option from the board.
+-- | *# Stable: A strategy returns a stable board if it has made no 
+-- |     changes to the board.
+-- | *# Finished: A strategy returns a finished board if it has 
+-- |     concluded that a board is either solved or impossible to 
+-- |     solve 
+-- |     Because strategies should not add options to a board,
+-- |     any board that is in an illegal/invalid state is finished
 module Sudoku.Strategy.Common where
 
 import Prelude
@@ -17,20 +33,20 @@ type StatefulStrategy = Stateful Puzzle -> Stateful Puzzle
 -- Strategies for Sudoku Puzzles
 -------------------------------------------------------------------
 
--- The strategy of doing nothing. This can never alter a board, 
--- so it always returns a Stable Board
+-- | The strategy of doing nothing. This can never alter a board, 
+-- | so it always returns a Stable Board
 doingNothing :: Strategy
 doingNothing = Stable
 
--- Turn a Strategy into a StatefulStrategy that will only work on
--- Advancing puzzles. Other puzzles are left unchanged
+-- | Turn a Strategy into a StatefulStrategy that will only work on
+-- | Advancing puzzles. Other puzzles are left unchanged
 onlyAdvancing :: Strategy -> StatefulStrategy
 onlyAdvancing strat (Advancing puzzle) = strat puzzle
 onlyAdvancing _ statefulPuzzle = statefulPuzzle
 
--- This is a StatefulStrategy that checks if a Puzzle is solved and 
--- never returns a Stable Puzzle. This can be used to compose onlyAdvancing
--- strategies 
+-- | This is a StatefulStrategy that checks if a Puzzle is solved or invalid and 
+-- | never returns a Stable Puzzle. This can be used to compose onlyAdvancing
+-- | strategies 
 advanceOrFinish :: StatefulStrategy
 advanceOrFinish ap@(Advancing puzzle)
   | isSolvedOrInvalid (snd puzzle) = Finished puzzle
@@ -40,6 +56,7 @@ advanceOrFinish (Stable puzzle)
   | otherwise = Advancing puzzle
 advanceOrFinish fp@(Finished puzzle) = fp
 
+-- | This is a StatefulStrategy that checks if a Puzzle is solved or invalid
 stayOrFinish :: StatefulStrategy
 stayOrFinish statefulPuzzle = 
   if isFinished statefulPuzzle 
@@ -50,24 +67,24 @@ stayOrFinish statefulPuzzle =
   where
     puzzle = unwrapStateful statefulPuzzle
 
--- Take a Strategy and repeat it until the strategy returns a stable/finished board
+-- | Take a Strategy and repeat it until the strategy returns a stable/finished board
 untilStable :: Strategy -> Strategy
 untilStable strat puzzle = untilStableMeta (onlyAdvancing strat) (strat puzzle)
 
--- Take a StatefulStrategy and repeat it until the strategy returns a stable/finished board
+-- | Take a StatefulStrategy and repeat it until the strategy returns a stable/finished board
 untilStableMeta :: StatefulStrategy -> StatefulStrategy
 untilStableMeta strat p@(Advancing _) = untilStableMeta strat $ strat p
 untilStableMeta _ p = p
 
--- This is a meta-strategy that creates a new strategy out of an ordered
--- list of strategies. The idea is that you order your strategies
--- from fastest to slowest, then only perform a slower strategy if
--- all the faster strategies are stable.
---
--- If a slower strategy has made a change, then re-run the faster 
--- strategies on this new board before repeating. AdvanceOrFinish is
--- used to check if a strategy has returned a finished board so strategies
--- do not need to check if they've solved a board.
+-- | This is a meta-strategy that creates a new strategy out of an ordered
+-- | list of strategies. The idea is that you order your strategies
+-- | from fastest to slowest, then only perform a slower strategy if
+-- | all the faster strategies are stable.
+-- |
+-- | If a slower strategy has made a change, then re-run the faster 
+-- | strategies on this new board before repeating. AdvanceOrFinish is
+-- | used to check if a strategy has returned a finished board so strategies
+-- | do not need to check if they've solved a board.
 ladderStrats :: NonEmptyArray Strategy -> Strategy
 ladderStrats strats puzzle =
   (Advancing puzzle) # foldl reducer seedValue restStrats

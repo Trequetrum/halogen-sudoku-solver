@@ -1,7 +1,14 @@
+-- | Cells are encodings of the possible options.
+-- |
+-- | That cells are implemented as bitfields is an internal detail and subject
+-- | to change in the future.
+-- | 
 module Sudoku.Cell.Internal where
 
 import Prelude
 
+import Data.Array ((..))
+import Data.Int (even)
 import Data.Int.Bits as Bi
 import Safe.Coerce (coerce)
 import Sudoku.Option (numOfOptions)
@@ -13,6 +20,24 @@ derive newtype instance showCell :: Show Cell
 
 allOptionsInt :: Int
 allOptionsInt = (1 `Bi.shl` numOfOptions) - 1
+
+countOptions' :: Cell -> Int
+countOptions' = counter 0 0
+  where
+    counter :: Int -> Int -> Cell -> Int
+    counter iter acc cell
+      | iter == numOfOptions = acc
+      | otherwise = counter
+        (iter + 1)
+        (acc + (evalPairty $ coerce cell))
+        (cell .>>. 1)
+    evalPairty :: Int -> Int
+    evalPairty n
+      | even n = 0
+      | otherwise = 1
+
+countOptionsLookupTable :: Array Int
+countOptionsLookupTable = countOptions' <$> (coerce $ 1 .. allOptionsInt)
 
 -------------------------------------------------------------------
 -- Binary Operations 
