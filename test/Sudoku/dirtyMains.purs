@@ -7,8 +7,8 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Console (log)
 import Prelude (Unit, append, discard, pure, show, unit, ($), (<>))
-import Sudoku.Common (Puzzle)
-import Sudoku.Format (parsePuzzle, statefulPuzzleToOptionsString, statefulPuzzleToString)
+import Sudoku.Format (statefulPuzzleToOptionsString, statefulPuzzleToString)
+import Sudoku.Puzzle (Puzzle, fromString)
 import Sudoku.Strategy.Bruteforce (ladderTupleBruteForce)
 import Sudoku.Strategy.NTuples (enforceNakedNTuples)
 import Test.Basic.Data (dummyPuzzle, hardestBoardStringsX11)
@@ -32,4 +32,4 @@ solve (Tuple i strng) = do
     statefulPuzzleToString $ 
     ladderTupleBruteForce $ 
     fromRight dummyPuzzle $ 
-    parsePuzzle strng
+    fromString strng

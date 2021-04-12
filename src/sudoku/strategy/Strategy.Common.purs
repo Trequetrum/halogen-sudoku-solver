@@ -5,8 +5,13 @@ import Prelude
 import Data.Array (foldl)
 import Data.Array.NonEmpty (NonEmptyArray, head, tail)
 import Data.Tuple (snd)
-import Stateful (Stateful(..))
-import Sudoku.Common (StatefulStrategy, Strategy, isSolvedOrInvalid)
+import Stateful (Stateful(..), isFinished, unwrapStateful)
+import Sudoku.Board (isSolvedOrInvalid)
+import Sudoku.Puzzle (Puzzle)
+
+type Strategy = Puzzle -> Stateful Puzzle
+
+type StatefulStrategy = Stateful Puzzle -> Stateful Puzzle
 
 -------------------------------------------------------------------
 -- Strategies for Sudoku Puzzles
@@ -34,6 +39,16 @@ advanceOrFinish (Stable puzzle)
   | isSolvedOrInvalid (snd puzzle) = Finished puzzle
   | otherwise = Advancing puzzle
 advanceOrFinish fp@(Finished puzzle) = fp
+
+stayOrFinish :: StatefulStrategy
+stayOrFinish statefulPuzzle = 
+  if isFinished statefulPuzzle 
+  then statefulPuzzle
+  else if isSolvedOrInvalid (snd puzzle)
+  then Finished puzzle
+  else statefulPuzzle
+  where
+    puzzle = unwrapStateful statefulPuzzle
 
 -- Take a Strategy and repeat it until the strategy returns a stable/finished board
 untilStable :: Strategy -> Strategy

@@ -1,15 +1,14 @@
 module App.HC.Cell where
 
-import Prelude
+import Prelude 
+import Sudoku.Cell (Cell, countOptions, firstOption, hasOption, toCell, toggleOptions, trustFirstOption)
+import Sudoku.Option (Option, allOptions, asString, invalidOption)
 
-import Data.Maybe (Maybe(..))
-import Debug (spy)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Sudoku.Common (Cell, Option, allOptions, countOptions, firstOption, hasOption, toCell, toggleOptions)
-import Sudoku.Format (optionString)
 import Web.UIEvent.MouseEvent (MouseEvent, ctrlKey)
 
 type Slot id = H.Slot Query Output id
@@ -50,7 +49,7 @@ component =
 
 updateState :: Input -> State
 updateState cell 
-  | countOptions cell == 1 = Constrained $ firstOption cell
+  | countOptions cell == 1 = Constrained $ fromMaybe invalidOption $ firstOption cell
   | otherwise = Unconstrained cell
 
 render :: ∀ slots m. 
@@ -63,7 +62,7 @@ render (Constrained option) = HH.div_
     [ HP.classes [ HH.ClassName "ss-forced-cell" ] 
     , HE.onClick clickConstrained
     ]
-    [ HH.text $ optionString option ]
+    [ HH.text $ asString option ]
   ]
   
 makeOption :: ∀ slots m. 
@@ -79,7 +78,7 @@ makeOption cell option = HH.div
       then "ss-option-open" 
       else "ss-option-closed"
     char = if open 
-      then optionString option 
+      then asString option 
       else ""
 
 clickConstrained :: MouseEvent -> Action
@@ -134,7 +133,7 @@ handleAction (Force option) = do
         H.raise $ SetTo $ toCell option
       else if countOptions stateCell == 1
       then do
-        H.put $ Constrained $ firstOption stateCell
+        H.put $ Constrained $ fromMaybe invalidOption $ firstOption stateCell
       else handleAction Bounce
     _ -> handleAction Bounce
 
@@ -142,7 +141,7 @@ handleAction (Receive newCell) = do
   state <- H.get
   case state of
     (Constrained stateOption) ->
-      if countOptions newCell == 1 && firstOption newCell == stateOption
+      if countOptions newCell == 1 && trustFirstOption newCell == stateOption
       then handleAction Bounce
       else H.put $ Unconstrained newCell
     (Unconstrained stateCell) -> 
@@ -152,3 +151,4 @@ handleAction (Receive newCell) = do
 
 receive :: Input -> Maybe Action
 receive = Just <<< Receive
+

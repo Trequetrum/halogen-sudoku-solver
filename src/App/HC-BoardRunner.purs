@@ -1,15 +1,15 @@
 module App.HC.BoardRunner where
 
 import Prelude
+import Sudoku.Board (Board(..), Index, boardIndices, boardRoot, boardSize, toCol, toRow, updateAtIndex, (!!))
+import Sudoku.Cell (Cell, allOptionsCell, dropOptions, setOptions, toCell)
 
 import App.HC.Cell (Output(..))
 import App.HC.Cell as HCCell
-import Data.Array (concat, modifyAt, (!!), (..))
+import Data.Array (concat, (..))
 import Data.Foldable (for_)
 import Data.Int (toNumber)
-import Data.Maybe (fromMaybe, maybe)
 import Data.Tuple (Tuple(..), snd)
-import Debug (spy)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -17,30 +17,29 @@ import Halogen.HTML.Properties as HP
 import Math ((%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful(..), unwrapStateful)
-import Sudoku.Common (Board, Cell(..), Index, Puzzle, StatefulStrategy, Strategy, boardIndices, boardRoot, boardSize, dropOptions, setOptions, toCell, toCol, toRow)
 import Sudoku.Format (beforeSudokuBorder)
+import Sudoku.Puzzle (Puzzle)
 import Sudoku.Strategy.Bruteforce (ladderTupleBruteForce)
+import Sudoku.Strategy.Common (Strategy, onlyAdvancing, stayOrFinish)
 import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceHiddenTuples, enforceNakedNTuples, enforceNakedTuples)
 import Test.Basic.Data (startingPuzzle)
 import Type.Prelude (Proxy(..))
 import Utility (inc)
 
-type Slots = ( cell :: HCCell.Slot Int )
+type Slots = ( cell :: HCCell.Slot Index )
 
 _cell = Proxy :: Proxy "cell"
 
-type SudokuBoard = Stateful Puzzle
-
 type State = 
-  { userBoard :: SudokuBoard
-  , renderBoard :: SudokuBoard
+  { userPuzzle :: Stateful Puzzle
+  , renderPuzzle :: Stateful Puzzle
   }
 
 data Action
   = Reset
   | ConstrainAll
-  | HandleCell Int HCCell.Output
-  | NewBoard SudokuBoard
+  | HandleCell Index HCCell.Output
+  | NewBoard Puzzle
   | Solve
   | Naked1Tuples
   | Hidden1Tuples
@@ -57,20 +56,20 @@ component =
 
 initialState :: State
 initialState = 
-  { userBoard : untouchedBoard
-  , renderBoard : untouchedBoard
+  { userPuzzle : untouchedPuzzle
+  , renderPuzzle : untouchedPuzzle
   }
   where
     untouchedCells :: Board
-    untouchedCells = coerce $ const 511 <$> boardIndices
+    untouchedCells = coerce $ const allOptionsCell <$> boardIndices
 
-    untouchedBoard :: SudokuBoard
-    untouchedBoard = Advancing $ Tuple ({ metaData: {}, metaBoard: [] }) untouchedCells
+    untouchedPuzzle :: Stateful Puzzle
+    untouchedPuzzle = Stable $ Tuple ({ metaData: {}, metaBoard: [] }) untouchedCells
 
-setNewBoard :: SudokuBoard -> State -> State
-setNewBoard board state = state 
-  { userBoard = board
-  , renderBoard = board
+setNewPuzzle :: Puzzle -> State -> State
+setNewPuzzle puzzle state = state 
+  { userPuzzle = Stable puzzle
+  , renderPuzzle = Stable puzzle
   }
 
 render :: ∀ m. State -> H.ComponentHTML Action Slots m
@@ -84,7 +83,7 @@ render state = HH.div
       [ HE.onClick \_ -> Reset ]
       [ HH.text "Reset" ]
     , HH.button
-      [ HE.onClick \_ -> NewBoard $ Advancing startingPuzzle]
+      [ HE.onClick \_ -> NewBoard startingPuzzle]
       [ HH.text "Starting Board" ]
     , HH.button
       [ HE.onClick \_ -> Solve ]
@@ -105,14 +104,14 @@ render state = HH.div
       [ HE.onClick \_ -> ConstrainAll ]
       [ HH.text "Ctrl+Click Cells" ]
     ]
-  , makeHCBoard $ snd $ unwrapStateful $ state.renderBoard
+  , makeHCBoard $ snd $ unwrapStateful $ state.renderPuzzle
   ]
 
 handleAction :: ∀ output m. Action → H.HalogenM State Action Slots output m Unit
 handleAction Reset = H.modify_ \_ -> initialState
 handleAction ConstrainAll = for_ boardIndices \i -> H.tell _cell i HCCell.Constrain
 handleAction (NewBoard board) = do 
-  H.modify_ \st -> setNewBoard board st
+  H.modify_ \st -> setNewPuzzle board st
   handleAction ConstrainAll
 
 handleAction (HandleCell index output) = case output of
@@ -130,21 +129,17 @@ handleAction HiddenTuples = handleStrategy enforceHiddenTuples
 -- Action Helpers
 ------------------------------------------------------------------------
 
-updateStateCell :: (Cell -> Cell -> Cell) -> Cell -> Int -> State -> State
+updateStateCell :: (Cell -> Cell -> Cell) -> Cell -> Index -> State -> State
 updateStateCell update with index state = state 
-  { userBoard = updateFn state.userBoard
-  , renderBoard = updateFn state.renderBoard
+  { userPuzzle = updateFn state.userPuzzle
+  , renderPuzzle = updateFn state.renderPuzzle
   }
   where
-    updateFn :: SudokuBoard -> SudokuBoard
-    updateFn puzzle = map (\b -> fromMaybe b $ modifyAt index (update with) b) <$> puzzle
-  
+    updateFn :: Stateful Puzzle -> Stateful Puzzle
+    updateFn puzzle = map (updateAtIndex (update with) index) <$> puzzle
 
 handleStrategy :: ∀ output m. Strategy -> H.HalogenM State Action Slots output m Unit
-handleStrategy strat = H.modify_ \st -> st { renderBoard = forceStrategy strat st.renderBoard }
-
-forceStrategy :: Strategy -> StatefulStrategy
-forceStrategy strat = unwrapStateful >>> strat
+handleStrategy strat = H.modify_ \st -> st { renderPuzzle = stayOrFinish $ onlyAdvancing strat st.renderPuzzle }
 
 ------------------------------------------------------------------------
 -- Building the board
@@ -154,7 +149,7 @@ borderCell :: ∀ widget input. HH.HTML widget input
 borderCell = HH.div [ HP.classes [HH.ClassName "ss-sudoku-border" ] ] []
 
 makeHCCell :: ∀ m. Board -> Index -> H.ComponentHTML Action Slots m
-makeHCCell board i = maybe borderCell (\c -> HH.slot _cell i HCCell.component c $ HandleCell i) (board !! i)
+makeHCCell board i = HH.slot _cell i HCCell.component (board !! i) $ HandleCell i
 
 makeHCBoard :: ∀ m. Board -> H.ComponentHTML Action Slots m
 makeHCBoard board = HH.div
@@ -181,7 +176,7 @@ makeHCBoard board = HH.div
     -- | Lets us put an empty row after the last cell in a right-most box
     -- | For boardsize of 9, this is index 26, and 53, which are the last 
     -- | cells in the 2nd and 5th row
-    customBottomSudokuBoxBorder :: Int -> Boolean
+    customBottomSudokuBoxBorder :: Index -> Boolean
     customBottomSudokuBoxBorder index =
       beforeSudokuBorder toRow index &&
       pos % root == 0.0 && 

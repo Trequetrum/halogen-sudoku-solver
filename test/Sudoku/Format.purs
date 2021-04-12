@@ -5,8 +5,9 @@ import Prelude
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..))
 import Safe.Coerce (coerce)
-import Sudoku.Common (Cell(..))
-import Sudoku.Format (parseBoard, parsePuzzle)
+import Sudoku.Board as Brd
+import Sudoku.Puzzle as Puzz
+import Sudoku.Cell.Internal (Cell(..))
 import Test.Basic.Data (startingBoard, startingBoardString)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
@@ -27,9 +28,9 @@ spec =
 --  it "makeStarterCell 1" $ C.makeStarterCell 1 `shouldEqual 1
 --  it "makeStarterCell 9" $ C.makeStarterCell 9 `shouldEqual 256
 --  it "makeStarterCell 10" $ C.makeStarterCell 10 `shouldEqual 511
-    it "Parse Correct Board" $ parseBoard startingBoardString
+    it "Parse Correct Board" $ Brd.fromString startingBoardString
       `shouldEqual` (Right startingBoard)
-    it "Parse Correct Board - dirty" $ parseBoard """
+    it "Parse Correct Board - dirty" $ Brd.fromString """
       4.....8.5|.3.......|...7.....
       abcdefghijklmnopqrstuvwxyz`!@
       .2.....6.|....8.4..|....1....
@@ -46,11 +47,11 @@ spec =
       , 16,511,511,2,511,511,511,511,511
       , 1,511,8,511,511,511,511,511,511
       ])
-    it "Parse Board Input String Too Short" $ parseBoard "123" `shouldSatisfy` eitherIsLeft
-    it "Parse Board Input String Too Long" $ parseBoard """
+    it "Parse Board Input String Too Short" $ Brd.fromString "123" `shouldSatisfy` eitherIsLeft
+    it "Parse Board Input String Too Long" $ Brd.fromString """
       0123456789 0123456789 0123456789 0123456789
       0123456789 0123456789 0123456789 0123456789
       0123456789
       """ `shouldSatisfy` eitherIsLeft
-    it "Parse a Puzzle" $ parsePuzzle startingBoardString `shouldEqual` 
+    it "Parse a Puzzle" $ Puzz.fromString startingBoardString `shouldEqual` 
       (Right $ Tuple { metaBoard: [], metaData: {} } startingBoard)

@@ -2,31 +2,34 @@ module Sudoku.Format where
 
 import Prelude
 
-import Data.Array (filter, find, length, replicate, splitAt)
-import Data.Either (Either(..))
-import Data.Int (binary, decimal, fromString, fromStringAs, toNumber, toStringAs)
-import Data.Maybe (Maybe(..), fromMaybe)
-import Data.String (Pattern(..), codePointFromChar, fromCodePointArray, joinWith, split)
+import Data.Array (replicate, splitAt)
+import Data.Int (binary, fromStringAs, toNumber, toStringAs)
+import Data.Maybe (fromMaybe)
+import Data.String (codePointFromChar, fromCodePointArray, joinWith)
 import Data.String as String
-import Data.Tuple (Tuple(..), snd)
-import Error (Error(..))
+import Data.Tuple (snd)
+import Math ((%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful(..))
-import Sudoku.Common (Board, Cell(..), Option(..), Puzzle, allOptions, allOptionsInt, asOptions, boardRoot, boardSize, hasOption, toCell, toCol, toRow)
+import Sudoku.Board (Board, Index, boardRoot, mapBoard, toCol, toRow)
+import Sudoku.Cell (asOptions, hasOption)
+import Sudoku.Cell.Internal (Cell(..))
+import Sudoku.Option (allOptions, numOfOptions)
+import Sudoku.Option as Optn
+import Sudoku.Puzzle (Puzzle)
 import Utility (inc)
-import Math((%))
 
 -------------------------------------------------------------------
 -- Display Helpers
 -------------------------------------------------------------------
 
-rightSudokuBoxBorder :: Int -> Boolean
+rightSudokuBoxBorder :: Index -> Boolean
 rightSudokuBoxBorder = beforeSudokuBorder toCol
 
-bottomSudokuBoxBorder :: Int -> Boolean
+bottomSudokuBoxBorder :: Index -> Boolean
 bottomSudokuBoxBorder = beforeSudokuBorder toRow
 
-beforeSudokuBorder :: (Int -> Int) -> Int -> Boolean
+beforeSudokuBorder :: (Index -> Int) -> Index -> Boolean
 beforeSudokuBorder axis index =
   pos % root == 0.0 && 
   pos / root < root
@@ -39,7 +42,7 @@ beforeSudokuBorder axis index =
 -------------------------------------------------------------------
 
 cellAsBinary :: Cell -> String
-cellAsBinary n = prefill (boardSize - String.length asBinary) <> asBinary
+cellAsBinary n = prefill (numOfOptions - String.length asBinary) <> asBinary
   where
     asBinary :: String
     asBinary = toStringAs binary $ coerce n
@@ -52,10 +55,7 @@ binaryAsCell :: String -> Cell
 binaryAsCell = fromStringAs binary >>> fromMaybe (-1) >>> Cell
 
 cellAsOptions :: Cell -> String
-cellAsOptions = (coerce asOptions) >>> map (toStringAs decimal) >>> joinWith ""
-
-optionString :: Option -> String
-optionString = coerce $ toStringAs decimal
+cellAsOptions = asOptions >>> map Optn.asString >>> joinWith ""
 
 statefulPuzzleToOptionsString :: Stateful Puzzle -> String
 statefulPuzzleToOptionsString (Advancing p) = "Advancing: \n" <> puzzleToOptionsString p
@@ -66,7 +66,7 @@ puzzleToOptionsString :: Puzzle -> String
 puzzleToOptionsString = snd >>> boardToOptionsString
 
 boardToOptionsString :: Board -> String
-boardToOptionsString = map cellAsOptions >>> joinWith "\" \""
+boardToOptionsString = mapBoard cellAsOptions >>> joinWith "\" \""
 
 -------------------------------------------------------------------
 -- Console output for Sudoku Puzzles
@@ -81,12 +81,12 @@ puzzleToString :: Puzzle -> String
 puzzleToString = snd >>> boardToString
 
 boardToString :: Board -> String
-boardToString board = display "" $ cellToString <$> board
+boardToString board = display "" $ mapBoard cellToString board
   where
     display :: String -> (Array String) -> String
     display acc [] = acc
     display acc arr = let
-      split = splitAt boardSize arr
+      split = splitAt numOfOptions arr
       in display 
         (acc <> (joinWith " " split.before) <> "\n")
         (split.after)
@@ -94,38 +94,10 @@ boardToString board = display "" $ cellToString <$> board
 cellToString :: Cell -> String
 cellToString cell = let 
   mapOption opt = if hasOption opt cell 
-    then toStringAs decimal $ coerce opt 
+    then Optn.asString opt 
     else "."
   in joinWith "" $ mapOption <$> allOptions
-  
--------------------------------------------------------------------
--- Parse
--------------------------------------------------------------------
--- For the textual format, we allow a string of characters with 1-9 
--- indicating a digit, and a 0 or period specifying an empty cell. 
--- All other characters are ignored. This includes spaces, newlines, 
--- dashes, and bars
--------------------------------------------------------------------
 
-parseBoard :: String -> Either Error Board
-parseBoard =
-  split (Pattern "") >>>
-  filter (\v -> (find (eq v) keepVals) /= Nothing) >>>
-  map (fromString >>> fromMaybe 0) >>>
-  (\v -> if fullLength == length v
-    then Right v
-    else Left $ Error "Parsing Sudoku Board" ("Input string contained " <> 
-      show (length v) <> "/" <> show fullLength <> " valid characters")
-  ) >>>
-  map (map makeStarterCell)
-  where
-    keepVals = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "."]
-    fullLength = boardSize * boardSize
-    makeStarterCell :: Int -> Cell
-    makeStarterCell n
-      | n > 0 && n <= boardSize = toCell $ Option n
-      | otherwise = Cell allOptionsInt
 
-parsePuzzle :: String -> Either Error Puzzle
-parsePuzzle = parseBoard >>> (map $ Tuple { metaData: {}, metaBoard: [] })
+
 

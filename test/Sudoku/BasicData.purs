@@ -2,11 +2,13 @@ module Test.Basic.Data where
 
 import Prelude
 
+import Sudoku.Board (Board(..))
 import Data.Either (fromRight)
 import Data.Tuple (Tuple(..))
 import Safe.Coerce (coerce)
-import Sudoku.Common (Board, Puzzle, Cell(..))
-import Sudoku.Format (parsePuzzle)
+import Sudoku.Cell.Internal (Cell(..))
+import Sudoku.Puzzle (Puzzle)
+import Sudoku.Puzzle as Puzz
 
 startingBoardString :: String
 startingBoardString = """
@@ -211,7 +213,7 @@ startingPuzzle' :: Puzzle
 startingPuzzle' = Tuple { metaData: {}, metaBoard: [] } startingBoard'
 
 hardBoardPuzzle :: Puzzle
-hardBoardPuzzle = fromRight dummyPuzzle $ parsePuzzle hardBoardString
+hardBoardPuzzle = fromRight dummyPuzzle $ Puzz.fromString hardBoardString
 
 startingPuzzleSolved :: Puzzle
 startingPuzzleSolved = Tuple { metaData: {}, metaBoard: [] } startingBoardSolved

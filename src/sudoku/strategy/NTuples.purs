@@ -2,30 +2,33 @@ module Sudoku.Strategy.NTuples where
 
 import Prelude
 
+import Sudoku.Board (Action, Board, Index, allIndicesGroup, batchDropOptions, filterIndices, indexedCells, indicesExPeers, repChange)
 import Control.MonadZero (guard)
-import Data.Array (concat, foldl, length, mapWithIndex, (\\))
+import Data.Array (concat, foldl, length, (\\))
 import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (sequence)
-import Data.Tuple (Tuple(..), fst, snd)
-import Stateful (Stateful(..), isAdvancing, isStable, unwrapStateful)
-import Sudoku.Common (Action, Board, Cell(..), Index, Strategy, allIndicesGroup, allOptionsCell, bNot, batchDropOptions, cellsBySize, cellsOfSize, countOptions, indicesExPeers, isSuperset, notDisjoint, repChange, (.&.))
-import Sudoku.Strategy.Common (ladderStrats)
-import Utility (filterUnless, selectFilter)
+import Data.Tuple (Tuple(..), snd)
+import Stateful (Stateful(..), unwrapStateful)
+import Sudoku.Cell (Cell, allCells, allOptionsCell, cellsOfSize, countOptions, dropOptions, isSuperset, notDisjoint, toggleCell)
+import Sudoku.Cell as Cells
+import Sudoku.Puzzle (Puzzle)
+import Sudoku.Strategy.Common (Strategy, ladderStrats)
+import Utility (filterUnless)
 
 type NTuple = Tuple Cell (Array Index)
 
--- NTuples typically exist only in the context of a group.
--- * tupleRel :: (Cell -> Cell -> Boolean) - if tupleRel (possible cell) (cell in board) == true, then 
---    (cell in board) is a counted cell in the board
--- * illegalRel :: (Int -> Int -> Boolean) - if 
---    illegalRel (countOptions possible cell) (counted cells in board) == true, 
---    then we short circuit and return Nothing. Indicating we have a board that isn't legal
---
--- * Int :: the size of the tuple we're searching for
--- * Board :: The cells we check for options in
--- * Array Index :: The indices of the board to search through
+-- | NTuples typically exist only in the context of a group.
+-- | * tupleRel :: (Cell -> Cell -> Boolean) - if tupleRel (possible cell) (cell in board) == true, then 
+-- |    (cell in board) is a counted cell in the board
+-- | * illegalRel :: (Int -> Int -> Boolean) - if 
+-- |    illegalRel (countOptions possible cell) (counted cells in board) == true, 
+-- |    then we short circuit and return Nothing. Indicating we have a board that isn't legal
+-- |
+-- | * Int :: the size of the tuple we're searching for
+-- | * Board :: The cells we check for options in
+-- | * Array Index :: The indices of the board to search through
 findNTuplesByPred :: (Cell -> Cell -> Boolean) -> (Int -> Int -> Boolean) ->
   Int -> Board -> Array Index -> Maybe (Array NTuple)
 findNTuplesByPred tupleRel illegalRel size board group =
@@ -38,7 +41,7 @@ findNTuplesByPred tupleRel illegalRel size board group =
     tuples = do
       comb <- cellsOfSize size
       guard $ isSuperset allOptionsCell comb
-      let matches = selectFilter (tupleRel comb) group board
+      let matches = filterIndices (tupleRel comb) board group
       guard $ length matches > 0
       pure $ Tuple comb matches
 
@@ -65,23 +68,23 @@ findHiddenNTuples = findNTuplesByPred notDisjoint (>)
 findTuplesByPred :: (Cell -> Cell -> Boolean) -> (Int -> Int -> Boolean) ->
   Board -> Array Index -> Maybe (Array NTuple)
 findTuplesByPred tupleRel illegalRel board group = 
-  find allOptionsCell cellsBySize group (Just [])
+  find allOptionsCell allCells group (Just [])
   where
     find :: Cell -> List Cell -> Array Index ->  Maybe (Array NTuple) -> Maybe (Array NTuple)
     find _ _ _ Nothing = Nothing
-    find (Cell 0) _ _ jt = jt
     find _ Nil _ jt = jt
     find options (currComb : restCombs) subgroup jt@(Just tuples)
+      | not (Cells.isValid options) = jt
       | countOptions currComb > length subgroup = jt
       | not (options `isSuperset` currComb) = find options restCombs subgroup jt
       | otherwise = let
         
         matches :: Array Index
-        matches = selectFilter (tupleRel currComb) subgroup board
+        matches = filterIndices (tupleRel currComb) board subgroup
 
       in if countOptions currComb == length matches 
         then find 
-          (options .&. bNot currComb)
+          (dropOptions currComb options)
           restCombs
           (subgroup \\ matches)
           (Just $ tuples <> (pure $ Tuple currComb matches))
@@ -111,7 +114,7 @@ enforceNaked1Tuples puzzle =
 
     actions :: Array Action
     actions = do
-      Tuple i cell <- mapWithIndex Tuple board
+      Tuple i cell <- indexedCells board
       guard $ countOptions cell == 1
       iPeer <- indicesExPeers i
       let action = Tuple iPeer cell
@@ -184,7 +187,7 @@ enforceHiddenTuples' findTuples puzzle = case maybeActions of
         pure do
           Tuple comb indices <- tuples
           i <- indices
-          let action = Tuple i $ bNot comb
+          let action = Tuple i $ toggleCell comb
           guard $ repChange board action
           pure action
 
@@ -202,37 +205,34 @@ ladderTuples = ladderStrats $ NonEmptyArray
   , rollingEnforceHiddenTuples    -- Optimized, but still pretty heavy, runs last
   ]
 
-pullout :: forall a. Tuple a (Stateful (Array Cell)) → Stateful (Tuple a (Array Cell))
-pullout (Tuple some (Finished thing)) = Finished $ Tuple some thing
-pullout (Tuple some (Advancing thing)) = Advancing $ Tuple some thing
-pullout (Tuple some (Stable thing)) = Stable $ Tuple some thing
-
 rollingEnforceHiddenTuples :: Strategy
-rollingEnforceHiddenTuples puzzle = pullout $ Tuple (fst puzzle) $ foldl 
+rollingEnforceHiddenTuples inputPuzzle = foldl 
   (\brd group -> enforce group brd)
-  (Stable $ snd puzzle)
+  (Stable inputPuzzle)
   allIndicesGroup
   where
-    enforce :: Array Index -> Stateful Board -> Stateful Board
-    enforce group fb@(Finished board) = fb
-    enforce group board = let
+    enforce :: Array Index -> Stateful Puzzle -> Stateful Puzzle
+    enforce group fp@(Finished _) = fp
+    enforce group sPuzzle = let
      
-      brd :: Board
-      brd = unwrapStateful board
+      puzzle :: Puzzle
+      puzzle = unwrapStateful sPuzzle
+
+      board :: Board
+      board = snd puzzle
 
       maybeActions :: Maybe (Array Action)
       maybeActions = do
-        tuples <- findHiddenTuples brd group
+        tuples <- findHiddenTuples board group
         pure do
           Tuple comb indices <- tuples
           i <- indices
-          let action = Tuple i $ bNot comb
-          guard $ repChange brd action
+          let action = Tuple i $ toggleCell comb
+          guard $ repChange board action
           pure action
       
     in case maybeActions of
-      Nothing -> Finished brd
+      Nothing -> Finished puzzle
       Just actions 
-        | length actions < 1 && isStable board -> board
-        | length actions < 1 && isAdvancing board -> Advancing brd
-        | otherwise -> Advancing $ batchDropOptions actions brd
+        | length actions < 1 -> sPuzzle
+        | otherwise -> Advancing $ batchDropOptions actions <$> puzzle

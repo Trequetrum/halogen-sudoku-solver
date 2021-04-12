@@ -2,13 +2,15 @@ module Sudoku.Strategy.Bruteforce where
 
 import Prelude
 
-import Data.Array (findIndex, findMap, (!!), (..))
+import Sudoku.Board (Board, Index, batchDropOptions, boardSize, findIndex, isSolved, (!!))
+import Data.Array (findMap, (..))
 import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..), snd)
 import Stateful (Stateful(..), unwrapStateful)
-import Sudoku.Common (Board, Cell, Index, Puzzle, StatefulStrategy, Strategy, bNot, batchDropOptions, boardSize, countOptions, firstOption, isSolved, toCell)
-import Sudoku.Strategy.Common (advanceOrFinish, ladderStrats)
+import Sudoku.Cell (Cell, countOptions, toCell, toggleCell, trustFirstOption)
+import Sudoku.Puzzle (Puzzle)
+import Sudoku.Strategy.Common (Strategy, StatefulStrategy, advanceOrFinish, ladderStrats)
 import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceNakedNTuples, ladderTuples)
 
 -------------------------------------------------------------------
@@ -24,13 +26,12 @@ import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceNakedNTuples, ladde
 -- Variable Ordering: Pick the first cell with > 1 option
 -- Value Ordering: Pick the first option
 selectFirst :: Board -> Maybe (Tuple Cell Index)
-selectFirst board = Tuple <$> option <*> i
+selectFirst board = Tuple <$> option <*> maybeI
   where
-    i = findIndex (countOptions >>> (_ > 1)) board
+    maybeI = findIndex (countOptions >>> (_ > 1)) board
     option = do
-      i' <- i
-      cell <- board !! i'
-      pure $ cell # firstOption >>> toCell
+      i <- maybeI
+      pure $ board !! i # trustFirstOption >>> toCell
 
 -- Variable Ordering: A common heuristic called minimum remaining values, 
 --    which means that we choose the (or one of the) cells with the 
@@ -38,15 +39,14 @@ selectFirst board = Tuple <$> option <*> i
 --    guessing correctly
 -- Value Ordering: Pick the first option
 selectMinOption :: Board -> Maybe (Tuple Cell Index)
-selectMinOption board = Tuple <$> option <*> i
+selectMinOption board = Tuple <$> option <*> maybeI
   where
-    i = findMap 
+    maybeI = findMap 
       (\size -> findIndex (countOptions >>> eq size) board) $ 
       2 .. (boardSize - 1)
     option = do
-      i' <- i
-      cell <- board !! i'
-      pure $ cell # firstOption >>> toCell
+      i <- maybeI
+      pure $ board !! i # trustFirstOption >>> toCell
 
 -- The slowest strategy, but it's guaranteed to solve any board
 -- that is solvable. 
@@ -76,7 +76,7 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
         selectedOption = selector $ snd puzzle
 
         guessAttempt :: Stateful Puzzle
-        guessAttempt = nextPuzzle $ bNot >>> dropOptionOnPuzzle
+        guessAttempt = nextPuzzle $ toggleCell >>> dropOptionOnPuzzle
 
         nextPuzzle action = case selectedOption of
           Nothing -> Finished puzzle
