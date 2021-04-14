@@ -15,7 +15,6 @@
 module Sudoku.Board
   ( -- Types
     Board
-  , Index
   , Action
     -- Board Constrctors
   , unconstrainedBoard
@@ -34,26 +33,6 @@ module Sudoku.Board
   , isSolved
   , isSolvedOrInvalid
   , effective
-    -- Index Constructors
-  , boundedIndex
-  , indexedCells
-  , boardIndices
-  , indicesRow
-  , indicesCol
-  , indicesBox
-  , indicesPeers
-  , indicesExPeers
-  , allIndicesRow
-  , allIndicesCol
-  , allIndicesBox
-  , allIndicesGroup
-    -- Index Mappings
-  , toCol
-  , toRow
-  , toBox
-    -- Index Conversions
-  , toInt
-  , toNumber
     -- Update Board State
   , batchDropOptions
   , modifyAtIndex
@@ -63,7 +42,7 @@ where
 import Prelude
 
 import Control.MonadZero (guard)
-import Data.Array (all, any, filter, length, mapWithIndex, nub, unsafeIndex, (..))
+import Data.Array (all, any, filter, length, mapWithIndex, unsafeIndex, (..))
 import Data.Array as Array
 import Data.Either (Either, note)
 import Data.Int as Ints
@@ -77,6 +56,9 @@ import Safe.Coerce (coerce)
 import Sudoku.Cell (allOptionsCell, firstOption, isForced, notDisjoint, toCell)
 import Sudoku.Cell as Cells
 import Sudoku.Cell.Internal (Cell(..))
+import Sudoku.Group (groupIndices, groups)
+import Sudoku.Index (boundedIndex, toInt)
+import Sudoku.Index.Internal (Index(..))
 import Sudoku.Option (boundedOption, numOfOptions)
 import Utility (allUniqueEq, both, dropMaskPerIndex)
 
@@ -90,12 +72,6 @@ newtype Board = Board (Array Cell)
 
 derive newtype instance eqBoard :: Eq Board
 derive newtype instance showBoard :: Show Board
-
-newtype Index = Index Int
-
-derive newtype instance eqIndex :: Eq Index
-derive newtype instance ordIndex :: Ord Index
-derive newtype instance showIndex :: Show Index
 
 type Action = Tuple Index Cell
 
@@ -153,7 +129,7 @@ fromString = split (Pattern "")
 -- | underlying array implemenation since boards (by constrction) always have
 -- | the same shape.
 boardIndex :: Board -> Index -> Cell
-boardIndex (Board array) index = unsafePartial (unsafeIndex array (coerce index))
+boardIndex (Board array) index = unsafePartial (unsafeIndex array (toInt index))
 
 -- | infix operator for boardIndex
 infix 8 boardIndex as !!
@@ -169,7 +145,11 @@ filterIndices pred board indices = filter (\i -> pred $ board !! i) indices
 
 -- | Find the first Index of a Cell that meets some predicate
 findIndex :: (Cell -> Boolean) -> Board -> Maybe Index
-findIndex pred (Board array) = Index <$> Array.findIndex pred array
+findIndex pred (Board array) = boundedIndex <$> Array.findIndex pred array
+
+-- | Converts a board into an array of indices and cells
+indexedCells :: Board -> Array (Tuple Index Cell)
+indexedCells (Board array) = mapWithIndex (\i c -> Tuple (boundedIndex i) c) array
 
 -------------------------------------------------------------------
 -- Predicates for Boards
@@ -183,9 +163,9 @@ allCellsValid (Board array) = all Cells.isValid array
 -- | Check that no group has two singleton Cells with the same option
 noForcedPeerDuplicates :: Board -> Boolean
 noForcedPeerDuplicates board = all allUniqueEq do
-  group <- allIndicesGroup
+  group <- groups
   do
-    i <- group
+    i <- groupIndices group
     guard $ isForced $ board !! i
     pure case firstOption $ board !! i of
       Nothing -> []
@@ -209,130 +189,6 @@ isSolvedOrInvalid board@(Board array) =
 effective :: Board -> Action -> Boolean
 effective board (Tuple i action) = 
   notDisjoint action $ board !! i
-
--------------------------------------------------------------------
--- Smart Constructors for Arrays of Indices
--------------------------------------------------------------------
-
--- | Turn an int into an Index. Ints that are not valid Indexs return
--- | the nearest possible Index
-boundedIndex :: Int -> Index
-boundedIndex n
-  | n >= length boardIndices = Index $ length boardIndices - 1
-  | n < 0 = Index 0
-  | otherwise = Index n
-
--- | Converts a board into an array of indices and cells
-indexedCells :: Board -> Array (Tuple Index Cell)
-indexedCells (Board array) = mapWithIndex (\i c -> Tuple (Index i) c) array
-
--- | An Array containing every valid index for a board
-boardIndices :: Array Index
-boardIndices = coerce $ 0 .. (boardSize * boardSize - 1)
-
--- | Helper function that ensures a valid group is indicated by an Int
--- | If not, it uses the nearest valid group
-boundedGroup :: (Int -> Array Index) -> Int -> Array Index
-boundedGroup fn int = 
-  if int < 0 
-  then fn 0
-  else if int >= boardSize 
-  then fn $ boardSize -1
-  else fn int
-
--- | An Array containing the indices for the given row
-indicesRow :: Int -> Array Index
-indicesRow = boundedGroup indices
-  where
-    indices n = coerce $ (n * boardSize) .. (n * boardSize + boardSize - 1)
-
--- | An Array containing the indices for the given column
-indicesCol :: Int -> Array Index
-indicesCol = boundedGroup indices
-  where
-    indices n = coerce $ (_ * boardSize) >>> (_ + n) <$> 0 .. (boardSize - 1)
-
--- | An Array containing the indices for the given box
-indicesBox :: Int -> Array Index
-indicesBox = boundedGroup indices
-  where 
-    indices n = coerce $ boxIndex <$> boxRange <*> boxRange
-      where
-        boxRange :: Array Int
-        boxRange = 0 .. (boardRoot - 1)
-
-        boxOffset :: Int
-        boxOffset = n / boardRoot * boardRoot * boardSize +
-          (n `mod` boardRoot) * boardRoot
-
-        boxIndex :: Int -> Int -> Int
-        boxIndex r c = boxOffset + boardSize * r + c
-
--- | An Array containing the indices for the peers of a given index
--- | including itself in the list of peers
-indicesPeers :: Index -> Array Index
-indicesPeers i = nub $
-  (indicesRow $ toRow i) <>
-  (indicesCol $ toCol i) <>
-  (indicesBox $ toBox i)
-
--- | An Array containing the indices for the peers of a given index
--- | excluding itself in the list of peers
-indicesExPeers :: Index -> Array Index
-indicesExPeers i = filter (notEq i) $ indicesPeers i
-
--- | An array of every row of indices
-allIndicesRow :: Array (Array Index)
-allIndicesRow = indicesRow <$> 0 .. (numOfOptions - 1)
-
--- | An array of every column of indices
-allIndicesCol :: Array (Array Index)
-allIndicesCol = indicesCol <$> 0 .. (numOfOptions - 1)
-
--- | An array of every box of indices
-allIndicesBox :: Array (Array Index)
-allIndicesBox = indicesBox <$> 0 .. (numOfOptions - 1)
-
--- | An array of every group of indices, note that every index will
--- | appear once in each type of group
-allIndicesGroup :: Array (Array Index)
-allIndicesGroup =
-  allIndicesRow <>
-  allIndicesCol <>
-  allIndicesBox
-
--------------------------------------------------------------------
--- Index mappings
--- Index -> Row Column & Box
--------------------------------------------------------------------
-
--- | Returns the column this index is a part of
-toCol :: Index -> Int
-toCol i = (coerce i) `mod` boardSize
-
--- | Returns the row this index is a part of
-toRow :: Index -> Int
-toRow i = (coerce i) / boardSize
-
--- | Returns the box this index is a part of
-toBox :: Index -> Int
-toBox index = boardRoot *
-  ((i / boardSize) / boardRoot) +
-  ((i / boardRoot) `mod` boardRoot)
-  where
-    i = coerce index
-
--------------------------------------------------------------------
--- Convert from Index
--------------------------------------------------------------------
-
--- | Convert index to an Int
-toInt :: Index -> Int
-toInt = coerce
-
--- | Convert index to a Number
-toNumber :: Index -> Number
-toNumber = coerce Ints.toNumber
 
 -------------------------------------------------------------------
 -- Update Board State

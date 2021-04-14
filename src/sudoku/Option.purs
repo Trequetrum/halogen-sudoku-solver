@@ -42,16 +42,16 @@ invalidOption = Option 0
 -- | Try to create an Option from an Int
 nthOption :: Int -> Maybe Option
 nthOption n
-  | n < 1 = Nothing
-  | n > numOfOptions = Nothing
-  | otherwise = Just (Option n)
+  | n < 0 = Nothing
+  | n >= numOfOptions = Nothing
+  | otherwise = Just (Option (n + 1))
 
 -- | Create an option from an Int, use the nearest available option
 boundedOption :: Int -> Option
 boundedOption n
-  | n < 1 = Option 1
+  | n < 0 = Option 1
   | n > numOfOptions = Option numOfOptions
-  | otherwise = Option n
+  | otherwise = Option (n + 1)
 
 -- | An array of all the possible options. 
 -- | boundedOption 1 == allOptions !! 0

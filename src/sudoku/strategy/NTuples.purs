@@ -1,7 +1,7 @@
 -- | Check the Docs folder for an explanation of Naked and Hidden Tuples (And the 
 -- | algorithm that finds and uses them). That is what is implemented here.
 -- |
--- | The finding algorithsm have an N in their name if they search for a specific 
+-- | The finding algorithms have an N in their name if they search for a specific 
 -- | size of tuple. They do not have an N if they search for tuples of any/all sizes
 -- |
 module Sudoku.Strategy.NTuples where

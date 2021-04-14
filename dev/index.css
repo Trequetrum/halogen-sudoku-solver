@@ -1,9 +1,4 @@
 
-.ss-solver-layout h1 {
-  grid-area: header;
-  text-align: center;
-}
-
 .ss-solver-layout {
   display: grid;
   gap: 10px;
@@ -11,8 +6,13 @@
   grid-template-rows: auto;
   grid-template-areas: 
     ". header  header . "
-    ". actions board  . "
+    ". board   board  . "
     ". actions select . "
+}
+
+.ss-solver-layout h1 {
+  grid-area: header;
+  text-align: center;
 }
 
 .ss-select-sudoku {
@@ -22,6 +22,16 @@
 .ss-select-sudoku div {
   display: flexbox
 }
+
+/*
+.ss-select-sudoku button {
+  width: 25px;
+  height: 25px;
+  border: 0 none transparent;
+  padding:0;
+  margin:0;
+}
+*/
 
 .ss-actions-container {
   grid-area: actions;

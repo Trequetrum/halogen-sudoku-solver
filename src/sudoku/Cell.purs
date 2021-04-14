@@ -2,7 +2,7 @@
 -- | possible at a given position in a Sudoku Board. 
 -- |
 module Sudoku.Cell 
-  (module CellType
+  ( module CellType
 
   , allOptionsCell
   , allCells

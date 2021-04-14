@@ -114,10 +114,24 @@ render state = HH.div
     ]
   ]
 
+-- | 
+-- | <button class="mdc-button mdc-button--outlined mdc-button--raised">
+-- |   <span class="mdc-button__label">Outlined Button</span>
+-- | </button>
+-- | 
 selectPuzzleButton :: ∀ widget. Int -> Puzzle -> HH.HTML widget Action
 selectPuzzleButton i x = HH.button
-  [ HE.onClick \_ -> NewPuzzle x ]
-  [ HH.text $ show $ i + 1 ]
+  [ HE.onClick \_ -> NewPuzzle x
+  , HP.classes 
+    [ HH.ClassName "mdc-button"
+    , HH.ClassName "mdc-button--outlined"
+    , HH.ClassName "mdc-button--raised"
+    ]
+  ]
+  [ HH.span 
+    [ HP.classes [ HH.ClassName "mdc-button__label" ] ]
+    [ HH.text $ show $ i + 1 ]
+  ]
 
 handleAction :: ∀ output m. Action → H.HalogenM State Action Slots output m Unit
 handleAction Reset = H.modify_ \_ -> initialState

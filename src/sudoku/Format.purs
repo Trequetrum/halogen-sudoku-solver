@@ -11,10 +11,12 @@ import Data.Tuple (snd)
 import Math (floor, sqrt, (%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful(..))
-import Sudoku.Board (Board, Index, mapBoard, toCol, toRow)
+import Sudoku.Board (Board, mapBoard)
 import Sudoku.Cell (asOptions, hasOption)
 import Sudoku.Cell.Internal (Cell(..))
-import Sudoku.Option (allOptions, numOfOptions)
+import Sudoku.Group (groupId, toColumn, toRow)
+import Sudoku.Index (Index)
+import Sudoku.Option (allOptions, indexOf, numOfOptions)
 import Sudoku.Option as Optn
 import Sudoku.Puzzle (Puzzle)
 import Utility (inc)
@@ -24,10 +26,10 @@ import Utility (inc)
 -------------------------------------------------------------------
 
 rightSudokuBoxBorder :: Index -> Boolean
-rightSudokuBoxBorder = beforeSudokuBorder toCol
+rightSudokuBoxBorder = beforeSudokuBorder (toColumn >>> groupId >>> indexOf)
 
 bottomSudokuBoxBorder :: Index -> Boolean
-bottomSudokuBoxBorder = beforeSudokuBorder toRow
+bottomSudokuBoxBorder = beforeSudokuBorder (toRow >>> groupId >>> indexOf)
 
 beforeSudokuBorder :: (Index -> Int) -> Index -> Boolean
 beforeSudokuBorder axis index =
