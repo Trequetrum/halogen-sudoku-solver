@@ -21,8 +21,9 @@ import Prelude
 import Data.Array (foldl)
 import Data.Array.NonEmpty (NonEmptyArray, head, tail)
 import Data.Tuple (snd)
-import Stateful (Stateful(..), isFinished, unwrapStateful)
-import Sudoku.Board (isSolvedOrInvalid)
+import Error (Error(..))
+import Stateful (Stateful(..), isInvalid, isSolved, unwrapStateful)
+import Sudoku.Board (isSolvedIffValid, isValid)
 import Sudoku.Puzzle (Puzzle)
 
 type Strategy = Puzzle -> Stateful Puzzle
@@ -48,24 +49,25 @@ onlyAdvancing _ statefulPuzzle = statefulPuzzle
 -- | never returns a Stable Puzzle. This can be used to compose onlyAdvancing
 -- | strategies 
 advanceOrFinish :: StatefulStrategy
-advanceOrFinish ap@(Advancing puzzle)
-  | isSolvedOrInvalid (snd puzzle) = Finished puzzle
-  | otherwise = ap
-advanceOrFinish (Stable puzzle)
-  | isSolvedOrInvalid (snd puzzle) = Finished puzzle
-  | otherwise = Advancing puzzle
-advanceOrFinish fp@(Finished puzzle) = fp
+advanceOrFinish p = case stayOrFinish p of
+  (Stable a) -> Advancing a
+  notStable -> notStable
 
 -- | This is a StatefulStrategy that checks if a Puzzle is solved or invalid
 stayOrFinish :: StatefulStrategy
 stayOrFinish statefulPuzzle = 
-  if isFinished statefulPuzzle 
+  if isSolved statefulPuzzle 
   then statefulPuzzle
-  else if isSolvedOrInvalid (snd puzzle)
-  then Finished puzzle
+  else if isInvalid statefulPuzzle
+  then statefulPuzzle
+  else if not $ isValid board
+  then Invalid (Error "" "") puzzle
+  else if isSolvedIffValid board
+  then Solved puzzle
   else statefulPuzzle
   where
     puzzle = unwrapStateful statefulPuzzle
+    board = snd puzzle
 
 -- | Take a Strategy and repeat it until the strategy returns a stable/finished board
 untilStable :: Strategy -> Strategy

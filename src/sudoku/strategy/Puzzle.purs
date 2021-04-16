@@ -9,17 +9,30 @@ module Sudoku.Puzzle where
 import Prelude
 
 import Data.Either (Either)
+import Data.Map (Map, fromFoldable)
 import Data.Tuple (Tuple(..))
 import Error (Error)
-import Sudoku.Board as Brd
 import Sudoku.Board (Board)
+import Sudoku.Board as Brd
+import Sudoku.Cell (Cell)
+import Sudoku.Group (Group)
+import Sudoku.Index (Index)
 
 type MetaBoard = 
-  { metaData :: {}
-  , metaBoard :: (Array {})
+  { tupleState :: Map Group (Map Int (Tuple Cell (Array Index)))
+  , tupleCount :: Map Int Int
   }
 
 type Puzzle = Tuple MetaBoard Board
 
+blankMetaBoard :: MetaBoard
+blankMetaBoard = 
+  { tupleState: fromFoldable []
+  , tupleCount: fromFoldable []
+  }
+
+fromBoard :: Board -> Puzzle
+fromBoard board = Tuple blankMetaBoard board
+
 fromString :: String -> Either Error Puzzle
-fromString = Brd.fromString >>> map (Tuple { metaData: {}, metaBoard: [] })
+fromString = Brd.fromString >>> map (Tuple blankMetaBoard)

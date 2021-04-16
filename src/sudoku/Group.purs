@@ -1,21 +1,59 @@
-module Sudoku.Group where
+module Sudoku.Group 
+  ( Group
+
+  , row
+  , column
+  , box
+
+  , rows
+  , columns
+  , boxes
+  , groups
+
+  , toRow
+  , toColumn
+  , toBox
+  , toGroups
+
+  , groupIndices
+  , groupId
+  , peerIndices
+  , exPeerIndices
+
+  , asIdString
+  ) where
 
 import Prelude
 
 import Data.Array (filter, nub)
 import Data.Int as Ints
 import Math (sqrt)
-import Sudoku.Option (Option, allOptions, boundedOption, indexOf, numOfOptions)
 import Sudoku.Index (toInt)
-import Sudoku.Index.Internal (Index, indicesCol, indicesRow)
+import Sudoku.Index.Internal (Index, indicesBox, indicesCol, indicesRow)
+import Sudoku.Option (Option, allOptions, asString, boundedOption, indexOf, numOfOptions)
 
 data Group
   = Row Option (Array Index)
   | Column Option (Array Index)
   | Box Option (Array Index)
 
+instance showGroup :: Show Group where
+  show :: Group -> String
+  show (Row o a) = "(Row " <> show o <> " " <> show a <> ")"
+  show (Column o a) = "(Column " <> show o <> " " <> show a <> ")"
+  show (Box o a) = "(Box " <> show o <> " " <> show a <> ")"
+
 instance eqGroup :: Eq Group where
   eq :: Group -> Group -> Boolean
+  eq (Row _ _) (Column _ _) = false
+  eq (Row _ _) (Box _ _) = false
+
+  eq (Column _ _) (Row _ _) = false
+  eq (Column _ _) (Box _ _) = false
+
+  eq (Box _ _) (Row _ _) = false
+  eq (Box _ _) (Column _ _) = false
+
   eq left right = groupId left == groupId right
 
 instance ordGroup :: Ord Group where
@@ -43,7 +81,7 @@ column :: Option -> Group
 column n = Column n $ indicesCol $ indexOf n
 
 box :: Option -> Group
-box n = Box n $ indicesCol $ indexOf n
+box n = Box n $ indicesBox $ indexOf n
 
 -- | An array of every row of indices
 rows :: Array Group
@@ -69,19 +107,19 @@ groups = rows <> columns <> boxes
 
 -- | Returns the row this index is a part of
 toRow :: Index -> Group
-toRow i = row $ boundedOption $ indexed + 1
+toRow i = row $ boundedOption $ indexed
   where
     indexed = (toInt i) / numOfOptions
 
 -- | Returns the column this index is a part of
 toColumn :: Index -> Group
-toColumn i = column $ boundedOption $ indexed + 1 
+toColumn i = column $ boundedOption $ indexed
   where
     indexed = (toInt i) `mod` numOfOptions
 
 -- | Returns the box this index is a part of
 toBox :: Index -> Group
-toBox index = box $ boundedOption $ indexed + 1
+toBox index = box $ boundedOption $ indexed
   where
     i = toInt index
     root = Ints.floor $ sqrt $ Ints.toNumber numOfOptions
@@ -113,10 +151,19 @@ groupId (Box o _) = o
 
 -- | An Array containing the indices for the peers of a given index
 -- | including itself in the list of peers
-indicesPeers :: Index -> Array Index
-indicesPeers i = nub $ toGroups i >>= groupIndices
+peerIndices :: Index -> Array Index
+peerIndices i = nub $ toGroups i >>= groupIndices
 
 -- | An Array containing the indices for the peers of a given index
 -- | excluding itself in the list of peers
-indicesExPeers :: Index -> Array Index
-indicesExPeers i = filter (notEq i) $ indicesPeers i
+exPeerIndices :: Index -> Array Index
+exPeerIndices i = filter (notEq i) $ peerIndices i
+
+-------------------------------------------------------------------
+-- Formatting for Groups
+-------------------------------------------------------------------
+
+asIdString :: Group -> String
+asIdString (Row o _) = "Row " <> asString o 
+asIdString (Column o _) = "Column " <> asString o 
+asIdString (Box o _) = "Box " <> asString o 

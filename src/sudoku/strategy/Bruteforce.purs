@@ -22,9 +22,11 @@ import Data.Array (findMap, (..))
 import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..), snd)
+import Error (Error(..))
 import Stateful (Stateful(..), unwrapStateful)
-import Sudoku.Board (Board, Index, batchDropOptions, findIndex, isSolved, (!!))
+import Sudoku.Board (Board, batchDropOptions, findIndex, isSolved, (!!))
 import Sudoku.Cell (countOptions, toCell, toggleCell, trustFirstOption)
+import Sudoku.Index (Index)
 import Sudoku.Option (Option, numOfOptions)
 import Sudoku.Puzzle (Puzzle)
 import Sudoku.Strategy.Common (Strategy, StatefulStrategy, advanceOrFinish, ladderStrats)
@@ -74,7 +76,8 @@ backtrackingBruteForce :: Selector -> Strategy -> Strategy
 backtrackingBruteForce selector strat = strat >>> bbfRecurse
   where
     bbfRecurse :: StatefulStrategy
-    bbfRecurse fp@(Finished _) = fp
+    bbfRecurse sop@(Solved _) = sop
+    bbfRecurse ip@(Invalid _ _) = ip
     bbfRecurse sp@(Stable _) = bbfRecurse $ advanceOrFinish sp
     bbfRecurse (Advancing puzzle) = 
       if isSolved (snd $ unwrapStateful guessAttempt) || isNothing selectedOption
@@ -88,7 +91,7 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
         guessAttempt = nextPuzzle $ toggleCell >>> dropOptionOnPuzzle
 
         nextPuzzle action = case selectedOption of
-          Nothing -> Finished puzzle
+          Nothing -> Invalid (Error "No Solutions" "This is a puzzle for which no solutions exist") puzzle
           Just (Tuple option index) -> 
             bbfRecurse $ strat $ action (toCell option) index
 

@@ -10,13 +10,13 @@ import Data.String as String
 import Data.Tuple (snd)
 import Math (floor, sqrt, (%))
 import Safe.Coerce (coerce)
-import Stateful (Stateful(..))
+import Stateful (Stateful, constructorString, unwrapStateful)
 import Sudoku.Board (Board, mapBoard)
-import Sudoku.Cell (asOptions, hasOption)
+import Sudoku.Cell (asOptions, asTokenString)
 import Sudoku.Cell.Internal (Cell(..))
 import Sudoku.Group (groupId, toColumn, toRow)
 import Sudoku.Index (Index)
-import Sudoku.Option (allOptions, indexOf, numOfOptions)
+import Sudoku.Option (indexOf, numOfOptions)
 import Sudoku.Option as Optn
 import Sudoku.Puzzle (Puzzle)
 import Utility (inc)
@@ -60,9 +60,7 @@ cellAsOptions :: Cell -> String
 cellAsOptions = asOptions >>> map Optn.asString >>> joinWith ""
 
 statefulPuzzleToOptionsString :: Stateful Puzzle -> String
-statefulPuzzleToOptionsString (Advancing p) = "Advancing: \n" <> puzzleToOptionsString p
-statefulPuzzleToOptionsString (Stable p) = "Stable: \n" <> puzzleToOptionsString p
-statefulPuzzleToOptionsString (Finished p) = "Finished: \n" <> puzzleToOptionsString p
+statefulPuzzleToOptionsString p = constructorString p <> ": \n" <> (puzzleToOptionsString $ unwrapStateful p)
 
 puzzleToOptionsString :: Puzzle -> String
 puzzleToOptionsString = snd >>> boardToOptionsString
@@ -75,15 +73,13 @@ boardToOptionsString = mapBoard cellAsOptions >>> joinWith "\" \""
 -------------------------------------------------------------------
 
 statefulPuzzleToString :: Stateful Puzzle -> String
-statefulPuzzleToString (Advancing p) = "Advancing: \n" <> puzzleToString p
-statefulPuzzleToString (Stable p) = "Stable: \n" <> puzzleToString p
-statefulPuzzleToString (Finished p) = "Finished: \n" <> puzzleToString p
+statefulPuzzleToString p = constructorString p <> ": \n" <> (puzzleToString $ unwrapStateful p)
 
 puzzleToString :: Puzzle -> String
 puzzleToString = snd >>> boardToString
 
 boardToString :: Board -> String
-boardToString board = display "" $ mapBoard cellToString board
+boardToString board = display "" $ mapBoard asTokenString board
   where
     display :: String -> (Array String) -> String
     display acc [] = acc
@@ -92,13 +88,6 @@ boardToString board = display "" $ mapBoard cellToString board
       in display 
         (acc <> (joinWith " " split.before) <> "\n")
         (split.after)
-
-cellToString :: Cell -> String
-cellToString cell = let 
-  mapOption opt = if hasOption opt cell 
-    then Optn.asString opt 
-    else "."
-  in joinWith "" $ mapOption <$> allOptions
 
 
 

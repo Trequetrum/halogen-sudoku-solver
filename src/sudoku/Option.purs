@@ -50,7 +50,7 @@ nthOption n
 boundedOption :: Int -> Option
 boundedOption n
   | n < 0 = Option 1
-  | n > numOfOptions = Option numOfOptions
+  | n >= numOfOptions = Option numOfOptions
   | otherwise = Option (n + 1)
 
 -- | An array of all the possible options. 

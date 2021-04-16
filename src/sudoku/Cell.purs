@@ -5,6 +5,7 @@ module Sudoku.Cell
   ( module CellType
 
   , allOptionsCell
+  , noOptionsCell
   , allCells
   , cellsOfSize
   , toCell
@@ -26,6 +27,8 @@ module Sudoku.Cell
   , isSuperset
   , isSubset
   , isForced
+
+  , asTokenString
   )
 where
 
@@ -33,12 +36,13 @@ import Prelude
 
 import Data.Array (filter, find, (!!), (..))
 import Data.Int.Bits as Bi
-import Data.List (List, fromFoldable)
+import Data.List (List, fromFoldable, range)
 import Data.Maybe (Maybe, fromMaybe)
+import Data.String (joinWith)
 import Safe.Coerce (coerce)
 import Sudoku.Cell.Internal (Cell(..), allOptionsInt, bNot, countOptionsLookupTable, (.&.), (.^.), (.|.))
 import Sudoku.Cell.Internal (Cell) as CellType
-import Sudoku.Option (Option, allOptions, indexOf, invalidOption, numOfOptions)
+import Sudoku.Option (Option, allOptions, asString, indexOf, invalidOption, numOfOptions)
 
 -------------------------------------------------------------------
 -- Smart Constructors for Cells
@@ -48,13 +52,16 @@ import Sudoku.Option (Option, allOptions, indexOf, invalidOption, numOfOptions)
 allOptionsCell :: Cell
 allOptionsCell = Cell allOptionsInt
 
+-- | The cell where no options are still possible. This is not a valid 
+-- | cell in a sudoku board, but it is still a valid combination of options.
+noOptionsCell :: Cell
+noOptionsCell = Cell 0
+
 -- | All combinations of possible cells. They have a loose ordering
 -- | such that cells with fewer possible options are earlier in the list
 -- | (So the last cell is guarnteed to be allOptionsCell)
 allCells :: List Cell
-allCells = fromFoldable do
-  i <- 1 .. numOfOptions
-  cellsOfSize i
+allCells = range 1 numOfOptions >>= (cellsOfSize >>> fromFoldable)
 
 -- | Return all the combinations of possible cells that have exactly 
 -- | N possible options remaining
@@ -153,3 +160,14 @@ isSubset = flip isSuperset
 -- | Check if a cell has only one possible option (This cell is forced or solved)
 isForced :: Cell -> Boolean
 isForced = countOptions >>> eq 1
+
+-------------------------------------------------------------------
+-- Formatting for Cells
+-------------------------------------------------------------------
+
+asTokenString :: Cell -> String
+asTokenString cell = let 
+  mapOption opt = if hasOption opt cell 
+    then asString opt 
+    else "."
+  in joinWith "" $ mapOption <$> allOptions

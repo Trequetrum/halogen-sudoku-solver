@@ -26,11 +26,13 @@ module Sudoku.Board
   , mapBoard
   , filterIndices
   , findIndex
+  , indexedCells
     -- Board Predicates
   , allCellsValid
   , noForcedPeerDuplicates
   , isValid
   , isSolved
+  , isSolvedIffValid
   , isSolvedOrInvalid
   , effective
     -- Update Board State
@@ -61,8 +63,6 @@ import Sudoku.Index (boundedIndex, toInt)
 import Sudoku.Index.Internal (Index(..))
 import Sudoku.Option (boundedOption, numOfOptions)
 import Utility (allUniqueEq, both, dropMaskPerIndex)
-
-
 
 -------------------------------------------------------------------
 -- Types
@@ -118,7 +118,7 @@ fromString = split (Pattern "")
     fullLength = boardSize * boardSize
     makeStarterCell :: Int -> Cell
     makeStarterCell n
-      | n > 0 && n <= boardSize = toCell $ boundedOption n
+      | n > 0 && n <= boardSize = toCell $ boundedOption (n - 1)
       | otherwise = allOptionsCell
 
 -------------------------------------------------------------------
@@ -164,10 +164,10 @@ allCellsValid (Board array) = all Cells.isValid array
 noForcedPeerDuplicates :: Board -> Boolean
 noForcedPeerDuplicates board = all allUniqueEq do
   group <- groups
-  do
+  pure do 
     i <- groupIndices group
     guard $ isForced $ board !! i
-    pure case firstOption $ board !! i of
+    case firstOption $ board !! i of
       Nothing -> []
       Just option -> pure option
 
@@ -179,6 +179,10 @@ isValid = both allCellsValid noForcedPeerDuplicates
 isSolved :: Board -> Boolean
 isSolved board@(Board array) = 
   all isForced array && isValid board
+
+isSolvedIffValid :: Board -> Boolean
+isSolvedIffValid (Board array) =
+  all isForced array
 
 -- | Check if a board has been solved or is not valid
 isSolvedOrInvalid :: Board -> Boolean

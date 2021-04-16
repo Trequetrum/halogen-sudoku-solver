@@ -9,22 +9,25 @@ import Data.Array (concat, mapWithIndex, (..))
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Int as Ints
-import Data.Tuple (Tuple(..), snd)
+import Data.Tuple (snd)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Math (floor, sqrt, (%))
-import Stateful (Stateful(..), unwrapStateful)
-import Sudoku.Board (Board, Index, boardIndices, modifyAtIndex, toCol, toRow, unconstrainedBoard, (!!))
+import Stateful (Stateful(..), constructorString, unwrapStateful)
+import Sudoku.Board (Board, modifyAtIndex, unconstrainedBoard, (!!))
 import Sudoku.Cell (Cell, dropOptions, setOptions, toCell)
 import Sudoku.Format (beforeSudokuBorder)
-import Sudoku.Option (numOfOptions)
-import Sudoku.Puzzle (Puzzle)
+import Sudoku.Group (groupId, toColumn, toRow)
+import Sudoku.Index (boardIndices)
+import Sudoku.Index.Internal (Index)
+import Sudoku.Option (indexOf, numOfOptions)
+import Sudoku.Puzzle (Puzzle, fromBoard)
 import Sudoku.Strategy.Bruteforce (ladderTupleBruteForce)
 import Sudoku.Strategy.Common (Strategy, advanceOrFinish, onlyAdvancing, stayOrFinish)
 import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceHiddenTuples, enforceNakedNTuples, enforceNakedTuples)
-import Test.Basic.Data (startingPuzzle)
+import Sudoku.Strategy.NTuplesWithMeta (enforceNaked1Tuples)
 import Type.Prelude (Proxy(..))
 import Utility (inc)
 
@@ -38,7 +41,8 @@ type State =
   }
 
 data Action
-  = Reset
+  = Blank
+  | Reset
   | ConstrainAll
   | HandleCell Index HCCell.Output
   | NewPuzzle Puzzle
@@ -63,7 +67,7 @@ initialState =
   }
   where
     untouchedPuzzle :: Stateful Puzzle
-    untouchedPuzzle = Stable $ Tuple ({ metaData: {}, metaBoard: [] }) unconstrainedBoard
+    untouchedPuzzle = Stable $ fromBoard unconstrainedBoard
 
 setNewPuzzle :: Puzzle -> State -> State
 setNewPuzzle puzzle state = state 
@@ -78,11 +82,14 @@ render state = HH.div
   , HH.div
     [ HP.classes [ HH.ClassName "ss-actions-container" ] ]
     [ HH.button
+      [ HE.onClick \_ -> Blank ]
+      [ HH.text "Blank Board" ]
+    , HH.button
       [ HE.onClick \_ -> Reset ]
       [ HH.text "Reset" ]
     , HH.button
-      [ HE.onClick \_ -> NewPuzzle startingPuzzle]
-      [ HH.text "Starting Board" ]
+      [ HE.onClick \_ -> ConstrainAll ]
+      [ HH.text "Enlarge Singletons" ]
     , HH.button
       [ HE.onClick \_ -> Solve ]
       [ HH.text "Solve" ]
@@ -98,14 +105,12 @@ render state = HH.div
     , HH.button
       [ HE.onClick \_ -> HiddenTuples ]
       [ HH.text "All Hidden Tuples" ]
-    , HH.button
-      [ HE.onClick \_ -> ConstrainAll ]
-      [ HH.text "Ctrl+Click Cells" ]
     ]
   , makeHCBoard $ snd $ unwrapStateful $ state.renderPuzzle
   , HH.div 
     [ HP.classes [ HH.ClassName "ss-select-sudoku" ] ] 
-    [ HH.h5_ [ HH.text "Select An Easy Sudoku" ]
+    [ HH.h3_ [ HH.text $ constructorString state.renderPuzzle ]
+    , HH.h5_ [ HH.text "Select An Easy Sudoku" ]
     , HH.div_(mapWithIndex selectPuzzleButton easyPuzzles)
     , HH.h5_ [ HH.text "Select A Hard Sudoku" ]
     , HH.div_(mapWithIndex selectPuzzleButton hardPuzzles)
@@ -134,7 +139,8 @@ selectPuzzleButton i x = HH.button
   ]
 
 handleAction :: ∀ output m. Action → H.HalogenM State Action Slots output m Unit
-handleAction Reset = H.modify_ \_ -> initialState
+handleAction Blank = H.modify_ \_ -> initialState
+handleAction Reset = H.modify_ \st -> st { renderPuzzle = st.userPuzzle }
 handleAction ConstrainAll = for_ boardIndices \i -> H.tell _cell i HCCell.Constrain
 handleAction (NewPuzzle puzzle) = do 
   H.modify_ \st -> setNewPuzzle puzzle st
@@ -145,8 +151,11 @@ handleAction (HandleCell index output) = case output of
   (ToggleOff option) -> H.modify_ $ updateStateCell dropOptions (toCell option) index
   (SetTo cell) -> H.modify_ $ updateStateCell const cell index
 
-handleAction Solve = handleStrategy ladderTupleBruteForce
-handleAction Naked1Tuples = handleStrategy $ enforceNakedNTuples 1
+handleAction Solve = do
+  handleStrategy ladderTupleBruteForce
+  handleAction ConstrainAll
+
+handleAction Naked1Tuples = handleStrategy $ enforceNaked1Tuples
 handleAction Hidden1Tuples = handleStrategy$ enforceHiddenNTuples 1
 handleAction NakedTuples = handleStrategy enforceNakedTuples 
 handleAction HiddenTuples = handleStrategy enforceHiddenTuples
@@ -185,7 +194,7 @@ makeHCBoard board = HH.div
     makeLayoutCells :: Index -> Array (H.ComponentHTML Action Slots m)
     makeLayoutCells i = let 
 
-      rightBorder = if beforeSudokuBorder toCol i 
+      rightBorder = if beforeSudokuBorder (toColumn >>> groupId >>> indexOf)  i 
         then [ borderCell ] 
         else []
       bottomBorder = if customBottomSudokuBoxBorder i 
@@ -204,9 +213,9 @@ makeHCBoard board = HH.div
     -- | cells in the 2nd and 5th row
     customBottomSudokuBoxBorder :: Index -> Boolean
     customBottomSudokuBoxBorder index =
-      beforeSudokuBorder toRow index &&
+      beforeSudokuBorder (toRow >>> groupId >>> indexOf) index &&
       pos % root == 0.0 && 
       pos / root == root
       where
-        pos = inc $ toNumber $ toCol index
+        pos = inc $ toNumber $ indexOf $ groupId $ toColumn index
         root = floor $ sqrt $ toNumber numOfOptions 
