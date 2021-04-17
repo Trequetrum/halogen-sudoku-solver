@@ -56,7 +56,7 @@ selectMinOption board = Tuple <$> option <*> maybeI
   where
     maybeI = findMap 
       (\size -> findIndex (countOptions >>> eq size) board) $ 
-      2 .. (numOfOptions - 1)
+      2 .. numOfOptions
     option = do
       i <- maybeI
       pure $ board !! i # trustFirstOption
@@ -91,7 +91,7 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
         guessAttempt = nextPuzzle $ toggleCell >>> dropOptionOnPuzzle
 
         nextPuzzle action = case selectedOption of
-          Nothing -> Invalid (Error "No Solutions" "This is a puzzle for which no solutions exist") puzzle
+          Nothing -> Invalid (Error "No Solutions" "After exhaustive search, this is a puzzle for which no solutions exist") puzzle
           Just (Tuple option index) -> 
             bbfRecurse $ strat $ action (toCell option) index
 

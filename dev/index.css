@@ -86,6 +86,10 @@
   background: #4120A9;
 }
 
+.ss-puzzle-container {
+  display: flex;
+}
+
 .ss-board-container {
   grid-area: board;
   align-self: center;
