@@ -6,11 +6,11 @@
   grid-template-rows: auto;
   grid-template-areas: 
     ". header  header . "
-    ". board   board  . "
+    ". puzzle  puzzle . "
     ". actions select . "
 }
 
-.ss-solver-layout h1 {
+.ss-layout-heading {
   grid-area: header;
   text-align: center;
 }
@@ -87,13 +87,19 @@
 }
 
 .ss-puzzle-container {
+  grid-area: puzzle;
+  align-self: center;
+  justify-self: center;
+
   display: flex;
 }
 
+.ss-metaboard-info-readout {
+  align-self: flex-start;
+  margin-left: 50px;
+}
+
 .ss-board-container {
-  grid-area: board;
-  align-self: center;
-  justify-self: center;
   display: inline-grid;
   grid-auto-flow: row;
   grid-template-columns: repeat(3, auto) 5px repeat(3, auto) 5px repeat(3, auto);

@@ -192,7 +192,7 @@ ladderTuples = ladderStrats $ NonEmptyArray
   , enforceHiddenTuples    -- Optimized, but still pretty heavy, runs last
   ]
 
--- | 
+-- | List of Cells whose size are less than half the number of options. 
 flooredSmallCells :: List Cell
 flooredSmallCells = L.fromFoldable $ 1 .. (floor $ toNumber numOfOptions / 2.0) >>= cellsOfSize
 
@@ -220,14 +220,14 @@ findSmallHiddenTuples = findTuplesByPred notDisjoint (>) flooredSmallCells
 -- |
 rollingEnforceTuples :: Strategy
 rollingEnforceTuples inputPuzzle = foldl 
-  (\brd group -> enforce group brd)
+  enforce
   (Stable inputPuzzle)
   groups
   where
-    enforce :: Group -> Stateful Puzzle -> Stateful Puzzle
-    enforce group ip@(Invalid _ _) = ip
-    enforce group sop@(Solved _) = sop
-    enforce group sPuzzle = let
+    enforce :: Stateful Puzzle -> Group -> Stateful Puzzle
+    enforce ip@(Invalid _ _) group = ip
+    enforce sop@(Solved _) group = sop
+    enforce sPuzzle group = let
      
       puzzle :: Puzzle
       puzzle = unwrapStateful sPuzzle
@@ -238,7 +238,7 @@ rollingEnforceTuples inputPuzzle = foldl
       maybeActions :: Maybe (Array Action)
       maybeActions = do
         nakedTuples <- findSmallNakedTuples board group
-        hiddenTuples <- findHiddenTuples board group
+        hiddenTuples <- findSmallHiddenTuples board group
         let nakedActions = concat $ toActions true board group <$> nakedTuples
         let hiddenActions = concat $ toActions false board group <$> hiddenTuples
         pure $ nakedActions <> hiddenActions 

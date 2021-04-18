@@ -169,5 +169,5 @@ asTokenString :: Cell -> String
 asTokenString cell = let 
   mapOption opt = if hasOption opt cell 
     then asString opt 
-    else "."
+    else ""
   in joinWith "" $ mapOption <$> allOptions

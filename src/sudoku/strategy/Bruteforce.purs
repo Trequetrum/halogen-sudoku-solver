@@ -30,7 +30,8 @@ import Sudoku.Index (Index)
 import Sudoku.Option (Option, numOfOptions)
 import Sudoku.Puzzle (Puzzle)
 import Sudoku.Strategy.Common (Strategy, StatefulStrategy, advanceOrFinish, ladderStrats)
-import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceNakedNTuples, ladderTuples)
+import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceNakedNTuples)
+import Sudoku.Strategy.NTuplesWithMeta (ladderTuples)
 
 type Selector = Board -> Maybe (Tuple Option Index)
 

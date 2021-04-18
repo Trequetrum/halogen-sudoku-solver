@@ -1,6 +1,31 @@
 { name = "halogen-ss-solver"
 , dependencies =
-  [ "console", "debug", "effect", "halogen", "psci-support", "spec" ]
+  [ "console"
+  , "debug"
+  , "effect"
+  , "halogen"
+  , "psci-support"
+  , "spec"
+  , "aff"
+  , "arrays"
+  , "bifunctors"
+  , "control"
+  , "either"
+  , "foldable-traversable"
+  , "integers"
+  , "lists"
+  , "math"
+  , "maybe"
+  , "ordered-collections"
+  , "partial"
+  , "prelude"
+  , "safe-coerce"
+  , "strings"
+  , "transformers"
+  , "tuples"
+  , "typelevel-prelude"
+  , "web-uievents"
+  ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
 }

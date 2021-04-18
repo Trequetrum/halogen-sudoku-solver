@@ -8,22 +8,24 @@ import Prelude
 
 import Control.MonadZero (guard)
 import Data.Array (catMaybes, filter, head, length, nub, (..), (:), (\\))
+import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either, fromRight)
 import Data.Foldable (foldl, foldr)
 import Data.FoldableWithIndex (foldlWithIndex)
 import Data.Map (Map, alter, fromFoldable, lookup)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), fst, snd)
 import Error (Error(..))
-import Stateful (Stateful(..))
+import Stateful (Stateful(..), unwrapStateful)
 import Sudoku.Board (Action, Board, batchDropOptions, effective, filterIndices, indexedCells)
-import Sudoku.Cell (Cell, allOptionsCell, asTokenString, cellsOfSize, countOptions, dropOptions, isSuperset, noOptionsCell, setOptions)
-import Sudoku.Group (Group, asIdString, exPeerIndices, groupIndices, toGroups)
+import Sudoku.Cell (Cell, allOptionsCell, asTokenString, cellsOfSize, countOptions, dropOptions, noOptionsCell, setOptions)
+import Sudoku.Cell as Cll
+import Sudoku.Group (Group, asIdString, exPeerIndices, groupIndices, groups, toGroups)
 import Sudoku.Index (Index)
 import Sudoku.Puzzle (MetaBoard, Puzzle)
-import Sudoku.Strategy.Common (Strategy)
+import Sudoku.Strategy.Common (Strategy, ladderStrats)
 import Sudoku.Strategy.NTuples (NTuple, nTupleSize, toActions)
 
 updateTupleMeta :: Group -> Puzzle -> Array NTuple -> Puzzle
@@ -55,11 +57,12 @@ tupleState :: Int -> Group -> Puzzle -> Tuple Cell (Array Index)
 tupleState size group puzzle = 
   foldl foldSizes (Tuple noOptionsCell []) $ taken <$> 1 .. size
   where
-    metaBoard :: MetaBoard
-    metaBoard = fst puzzle
+    --stateMap :: 
+    stateMap :: Map Group (Map Int (Tuple Cell (Array Index)))
+    stateMap = fst puzzle # _.tupleState
 
     taken :: Int -> Maybe (Tuple Cell (Array Index))
-    taken size' = lookup group metaBoard.tupleState >>= lookup size'
+    taken size' = lookup group stateMap >>= lookup size'
 
     foldSizes :: (Tuple Cell (Array Index)) -> 
       Maybe (Tuple Cell (Array Index)) -> 
@@ -67,6 +70,19 @@ tupleState size group puzzle =
     foldSizes acc Nothing = acc
     foldSizes (Tuple cell indices) (Just (Tuple nxtCell nxtIndices)) =
       Tuple (setOptions cell nxtCell) (nub $ indices <> nxtIndices)
+
+isTupleState :: Puzzle -> Group -> NTuple -> Boolean
+isTupleState puzzle group tuple = isJust do
+  stateGroup <- lookup group (fst puzzle # _.tupleState) 
+  stateSpace <- lookup (countOptions $ fst tuple) stateGroup
+  guard $ isSuperset stateSpace tuple
+  pure true
+
+isSuperset :: NTuple -> NTuple -> Boolean
+isSuperset left right = oDiff && iDiff
+  where
+    oDiff = Cll.isSuperset (fst left) (fst right)
+    iDiff = length (snd right \\ snd left) == 0
 
 -- | This is a metaSearch because it leans on reliable metadata to narrow the search-space. 
 -- |
@@ -81,8 +97,8 @@ tupleState size group puzzle =
 -- |
 -- | This accomplishes a lot in one fell swoop. The implementation could probably be tidied up a bit.
 -- |
-findNTuples :: Int -> Puzzle -> Group -> Tuple Puzzle (Either Error (Array Action))
-findNTuples size puzzle group = either 
+findNTupleActions :: Int -> Puzzle -> Group -> Tuple Puzzle (Either Error (Array Action))
+findNTupleActions size puzzle group = either 
   (Tuple puzzle <<< Left) 
   (\_ -> either 
     (Tuple puzzle <<< Left) 
@@ -98,13 +114,13 @@ findNTuples size puzzle group = either
     startState = tupleState size group puzzle
 
     options :: Cell
-    options = dropOptions allOptionsCell $ fst startState
+    options = dropOptions (fst startState) allOptionsCell
 
     indices :: Array Index
     indices = groupIndices group \\ snd startState
 
     combs :: Array Cell
-    combs = filter (isSuperset options) $ cellsOfSize size
+    combs = filter (Cll.isSuperset options) $ cellsOfSize size
 
     nakedTuples :: Either Error (Array NTuple)
     nakedTuples = catMaybes <$> (sequence $ checkIfNaked <$> combs)
@@ -131,30 +147,30 @@ findNTuples size puzzle group = either
       then Left $ Error "Impossible Naked Tuple" ("Options (" <> 
         asTokenString comb <> 
         ") are a superset of " <> 
-        show (countOptions comb) <> 
+        show (length matches) <> 
         "cells in " <> asIdString group)
       else if success
       then Right $ Just $ Tuple comb matches
       else Right Nothing
       where
-        matches = filterIndices (isSuperset comb) board indices
+        matches = filterIndices (Cll.isSuperset comb) board indices
         success = countOptions comb == length matches
         failure = countOptions comb < length matches
 
     checkIfHidden :: Cell -> Either Error (Maybe NTuple)
     checkIfHidden comb = if failure 
-      then Left $ Error "Impossible Hidden Tuple" ("Options (" <> 
+      then Left $ Error "Impossible Hidden Tuple" ("Option(s) (" <> 
         asTokenString comb <> 
         ") are not disjoint with " <> 
-        show (countOptions comb) <> 
-        "cells in " <> asIdString group)
+        show (length matches) <> 
+        " cell(s) in " <> asIdString group)
       else if success
       then Right $ Just $ Tuple comb matches
       else Right Nothing
       where
-        matches = filterIndices (isSuperset comb) board indices
+        matches = filterIndices (Cll.notDisjoint comb) board indices
         success = countOptions comb == length matches
-        failure = countOptions comb < length matches
+        failure = countOptions comb > length matches
 
 
 -- | A very basic strategy, if a cell has only one option, then remove that option
@@ -173,20 +189,17 @@ enforceNaked1Tuples puzzle =
     board :: Board
     board = snd puzzle
 
-    --startState :: Tuple Cell (Array Index) 
-    --startState = tupleState 1 group puzzle
-
     newMetaPuzzle :: Puzzle
     newMetaPuzzle = foldlWithIndex updateTupleMeta puzzle mappedGroups
-
-    mappedGroups :: Map Group (Array NTuple)
-    mappedGroups = foldl singletonFolder (fromFoldable []) singletons
     
     singletons :: Array NTuple
     singletons = do
       Tuple i cell <- indexedCells board
       guard $ countOptions cell == 1
       pure $ Tuple cell [i]
+
+    mappedGroups :: Map Group (Array NTuple)
+    mappedGroups = foldl singletonFolder (fromFoldable []) singletons
 
     singletonFolder :: Map Group (Array NTuple) -> NTuple -> Map Group (Array NTuple)
     singletonFolder groupMap tuple = foldl groupFolder groupMap groups
@@ -196,10 +209,14 @@ enforceNaked1Tuples puzzle =
 
         groupFolder :: Map Group (Array NTuple) -> Group -> Map Group (Array NTuple)
         groupFolder gMap group = alter alterTuple group gMap
-
-        alterTuple :: Maybe (Array NTuple) -> Maybe (Array NTuple)
-        alterTuple Nothing = Just [tuple]
-        alterTuple (Just tuples) = Just $ tuple : tuples 
+          where
+            alterTuple :: Maybe (Array NTuple) -> Maybe (Array NTuple)
+            alterTuple Nothing = case isTupleState puzzle group tuple of
+              false -> Just [tuple]
+              true -> Nothing
+            alterTuple jt@(Just tuples) = case isTupleState puzzle group tuple of
+              false -> Just $ tuple : tuples
+              true -> jt
 
     actions :: Array Action
     actions = do
@@ -209,3 +226,29 @@ enforceNaked1Tuples puzzle =
       let action = Tuple iPeer cell
       guard $ effective board action
       pure action
+
+enforceNTuples :: Int -> Strategy
+enforceNTuples size inputPuzzle = foldl 
+  folder (Stable inputPuzzle) groups
+  where
+    folder :: Stateful Puzzle -> Group -> Stateful Puzzle
+    folder ip@(Invalid _ sPuzzle) _ = ip
+    folder sop@(Solved _) _ = sop
+    folder sPuzzle group = let
+
+      (Tuple newMeta eActions) =
+        findNTupleActions size (unwrapStateful sPuzzle) group
+
+    in case eActions of
+      (Left err) -> Invalid err newMeta
+      Right actions 
+        | length actions < 1 -> sPuzzle
+        | otherwise -> Advancing $ batchDropOptions actions <$> newMeta
+
+ladderTuples :: Strategy
+ladderTuples = ladderStrats $ NonEmptyArray
+  [ enforceNTuples 1
+  , enforceNTuples 2 
+  , enforceNTuples 3 
+  , enforceNTuples 4 
+  ]

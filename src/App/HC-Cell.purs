@@ -92,7 +92,7 @@ clickOption option evt = if ctrlKey evt
   else Toggle option
 
 -- We write a function to handle queries when they arise.
-handleQuery :: forall a slots m. Query a -> H.HalogenM State Action slots Output m (Maybe a)
+handleQuery :: ∀ a slots m. Query a -> H.HalogenM State Action slots Output m (Maybe a)
 handleQuery (Constrain a) = do
   state <- H.get
   case state of

@@ -12,11 +12,11 @@ import Math (floor, sqrt, (%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful, constructorString, unwrapStateful)
 import Sudoku.Board (Board, mapBoard)
-import Sudoku.Cell (asOptions, asTokenString)
+import Sudoku.Cell (asOptions, asTokenString, hasOption)
 import Sudoku.Cell.Internal (Cell(..))
 import Sudoku.Group (groupId, toColumn, toRow)
 import Sudoku.Index (Index)
-import Sudoku.Option (indexOf, numOfOptions)
+import Sudoku.Option (allOptions, asString, indexOf, numOfOptions)
 import Sudoku.Option as Optn
 import Sudoku.Puzzle (Puzzle)
 import Utility (inc)
@@ -78,8 +78,15 @@ statefulPuzzleToString p = constructorString p <> ": \n" <> (puzzleToString $ un
 puzzleToString :: Puzzle -> String
 puzzleToString = snd >>> boardToString
 
+cellToString :: Cell -> String
+cellToString cell = let 
+  mapOption opt = if hasOption opt cell 
+    then asString opt 
+    else "."
+  in joinWith "" $ mapOption <$> allOptions
+
 boardToString :: Board -> String
-boardToString board = display "" $ mapBoard asTokenString board
+boardToString board = display "" $ mapBoard cellToString board
   where
     display :: String -> (Array String) -> String
     display acc [] = acc

@@ -5,11 +5,13 @@ import Prelude
 import App.HC.Cell (Output(..))
 import App.HC.Cell as HCCell
 import App.Parseboards (easyPuzzles, hardPuzzles, hardestPuzzles)
-import Data.Array (concat, mapWithIndex, (..))
+import Data.Array ((..))
 import Data.Foldable (for_)
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (toNumber)
 import Data.Int as Ints
-import Data.Tuple (snd)
+import Data.Map (toUnfoldable)
+import Data.Tuple (Tuple(..), fst, snd)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -23,11 +25,11 @@ import Sudoku.Group (groupId, toColumn, toRow)
 import Sudoku.Index (boardIndices)
 import Sudoku.Index.Internal (Index)
 import Sudoku.Option (indexOf, numOfOptions)
-import Sudoku.Puzzle (Puzzle, fromBoard)
+import Sudoku.Puzzle (Puzzle, MetaBoard, fromBoard)
 import Sudoku.Strategy.Bruteforce (ladderTupleBruteForce)
 import Sudoku.Strategy.Common (Strategy, advanceOrFinish, onlyAdvancing, stayOrFinish)
-import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceHiddenTuples, enforceNakedNTuples, enforceNakedTuples)
-import Sudoku.Strategy.NTuplesWithMeta (enforceNaked1Tuples)
+import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceHiddenTuples, enforceNakedTuples)
+import Sudoku.Strategy.NTuplesWithMeta (enforceNaked1Tuples, enforceNTuples)
 import Type.Prelude (Proxy(..))
 import Utility (inc)
 
@@ -47,10 +49,10 @@ data Action
   | HandleCell Index HCCell.Output
   | NewPuzzle Puzzle
   | Solve
-  | Naked1Tuples
-  | Hidden1Tuples
-  | NakedTuples
-  | HiddenTuples
+  | Enforce1Tuples
+  | Enforce2Tuples
+  | Enforce3Tuples
+  | Enforce4Tuples
 
 component :: ∀ query input output m. H.Component query input output m
 component =
@@ -78,45 +80,102 @@ setNewPuzzle puzzle state = state
 render :: ∀ m. State -> H.ComponentHTML Action Slots m
 render state = HH.div
   [ HP.classes [ HH.ClassName "ss-solver-layout" ] ]
-  [ HH.h1_ [ HH.text "Halogen6 Sudoku" ]
-  , HH.div
-    [ HP.classes [ HH.ClassName "ss-actions-container" ] ]
-    [ HH.button
-      [ HE.onClick \_ -> Blank ]
-      [ HH.text "Blank Board" ]
-    , HH.button
-      [ HE.onClick \_ -> Reset ]
-      [ HH.text "Reset" ]
-    , HH.button
-      [ HE.onClick \_ -> ConstrainAll ]
-      [ HH.text "Enlarge Singletons" ]
-    , HH.button
-      [ HE.onClick \_ -> Solve ]
-      [ HH.text "Solve" ]
-    , HH.button
-      [ HE.onClick \_ -> Naked1Tuples ]
-      [ HH.text "Naked 1 Tuples" ]
-    , HH.button
-      [ HE.onClick \_ -> Hidden1Tuples ]
-      [ HH.text "Hidden 1 Tuples" ]
-    , HH.button
-      [ HE.onClick \_ -> NakedTuples ]
-      [ HH.text "All Naked Tuples" ]
-    , HH.button
-      [ HE.onClick \_ -> HiddenTuples ]
-      [ HH.text "All Hidden Tuples" ]
+  [ HH.div [ HP.classes [HH.ClassName "ss-layout-heading" ] ]
+    [ HH.h1_ [ HH.text "Sudoku Solver" ]
+    , HH.h3_ [ HH.text "A Purescript Exercise Project" ]
     ]
-  , makeHCBoard $ snd $ unwrapStateful $ state.renderPuzzle
-  , HH.div 
-    [ HP.classes [ HH.ClassName "ss-select-sudoku" ] ] 
-    [ HH.h3_ [ HH.text $ constructorString state.renderPuzzle ]
-    , HH.h5_ [ HH.text "Select An Easy Sudoku" ]
-    , HH.div_(mapWithIndex selectPuzzleButton easyPuzzles)
-    , HH.h5_ [ HH.text "Select A Hard Sudoku" ]
-    , HH.div_(mapWithIndex selectPuzzleButton hardPuzzles)
-    , HH.h5_ [ HH.text "Select A Hardest Sudoku" ]
-    , HH.div_ (mapWithIndex selectPuzzleButton hardestPuzzles)
+  , HH.div [ HP.classes [HH.ClassName "ss-puzzle-container" ] ]
+    [ makeHCBoard $ snd $ unwrapStateful $ state.renderPuzzle
+    , makeHCMetaOutput state.renderPuzzle
     ]
+  , hCActionsUi
+  , selectAPuzzle
+  ]
+
+handleAction :: ∀ output m. Action → H.HalogenM State Action Slots output m Unit
+handleAction Blank = H.modify_ \_ -> initialState
+handleAction Reset = H.modify_ \st -> st { renderPuzzle = st.userPuzzle }
+handleAction ConstrainAll = for_ boardIndices \i -> H.tell _cell i HCCell.Constrain
+handleAction (NewPuzzle puzzle) = do 
+  H.modify_ \st -> setNewPuzzle puzzle st
+  handleAction ConstrainAll
+
+handleAction (HandleCell index output) = case output of
+  (ToggleOn option) -> H.modify_ $ updateStateCell setOptions (toCell option) index
+  (ToggleOff option) -> H.modify_ $ updateStateCell dropOptions (toCell option) index
+  (SetTo cell) -> H.modify_ $ updateStateCell const cell index
+
+handleAction Solve = do
+  handleStrategy ladderTupleBruteForce
+  handleAction ConstrainAll
+
+handleAction Enforce1Tuples = handleStrategy $ enforceNTuples 1
+handleAction Enforce2Tuples = handleStrategy $ enforceNTuples 2
+handleAction Enforce3Tuples = handleStrategy $ enforceNTuples 3
+handleAction Enforce4Tuples = handleStrategy $ enforceNTuples 4
+
+------------------------------------------------------------------------
+-- Action Helpers
+------------------------------------------------------------------------
+
+updateStateCell :: (Cell -> Cell -> Cell) -> Cell -> Index -> State -> State
+updateStateCell update with index state = state 
+  { userPuzzle = updateFn state.userPuzzle
+  , renderPuzzle = updateFn state.renderPuzzle
+  }
+  where
+    updateFn :: Stateful Puzzle -> Stateful Puzzle
+    updateFn puzzle = map (modifyAtIndex (update with) index) <$> puzzle
+
+handleStrategy :: ∀ output m. Strategy -> H.HalogenM State Action Slots output m Unit
+handleStrategy strat = H.modify_ \st -> st { renderPuzzle = stayOrFinish $ onlyAdvancing strat $ advanceOrFinish st.renderPuzzle }
+
+------------------------------------------------------------------------
+-- Action Buttons
+------------------------------------------------------------------------
+
+hCActionsUi :: ∀ widget. HH.HTML widget Action
+hCActionsUi = HH.div
+  [ HP.classes [ HH.ClassName "ss-actions-container" ] ]
+  [ HH.button
+    [ HE.onClick \_ -> Blank ]
+    [ HH.text "Blank Board" ]
+  , HH.button
+    [ HE.onClick \_ -> Reset ]
+    [ HH.text "Reset" ]
+  , HH.button
+    [ HE.onClick \_ -> ConstrainAll ]
+    [ HH.text "Enlarge Singletons" ]
+  , HH.button
+    [ HE.onClick \_ -> Solve ]
+    [ HH.text "Solve" ]
+  , HH.button
+    [ HE.onClick \_ -> Enforce1Tuples ]
+    [ HH.text "1 Tuples" ]
+  , HH.button
+    [ HE.onClick \_ -> Enforce2Tuples ]
+    [ HH.text "2 Tuples" ]
+  , HH.button
+    [ HE.onClick \_ -> Enforce3Tuples ]
+    [ HH.text "3 Tuples" ]
+  , HH.button
+    [ HE.onClick \_ -> Enforce4Tuples ]
+    [ HH.text "4 Tuples" ]
+  ]
+
+------------------------------------------------------------------------
+-- Pre-build Puzzle Buttons
+------------------------------------------------------------------------
+
+selectAPuzzle :: ∀ widget. HH.HTML widget Action
+selectAPuzzle = HH.div 
+  [ HP.classes [ HH.ClassName "ss-select-sudoku" ] ] 
+  [ HH.h5_ [ HH.text "Select An Easy Sudoku" ]
+  , HH.div_(mapWithIndex selectPuzzleButton easyPuzzles)
+  , HH.h5_ [ HH.text "Select A Hard Sudoku" ]
+  , HH.div_(mapWithIndex selectPuzzleButton hardPuzzles)
+  , HH.h5_ [ HH.text "Select A Hardest Sudoku" ]
+  , HH.div_ (mapWithIndex selectPuzzleButton hardestPuzzles)
   ]
 
 -- | 
@@ -138,44 +197,6 @@ selectPuzzleButton i x = HH.button
     [ HH.text $ show $ i + 1 ]
   ]
 
-handleAction :: ∀ output m. Action → H.HalogenM State Action Slots output m Unit
-handleAction Blank = H.modify_ \_ -> initialState
-handleAction Reset = H.modify_ \st -> st { renderPuzzle = st.userPuzzle }
-handleAction ConstrainAll = for_ boardIndices \i -> H.tell _cell i HCCell.Constrain
-handleAction (NewPuzzle puzzle) = do 
-  H.modify_ \st -> setNewPuzzle puzzle st
-  handleAction ConstrainAll
-
-handleAction (HandleCell index output) = case output of
-  (ToggleOn option) -> H.modify_ $ updateStateCell setOptions (toCell option) index
-  (ToggleOff option) -> H.modify_ $ updateStateCell dropOptions (toCell option) index
-  (SetTo cell) -> H.modify_ $ updateStateCell const cell index
-
-handleAction Solve = do
-  handleStrategy ladderTupleBruteForce
-  handleAction ConstrainAll
-
-handleAction Naked1Tuples = handleStrategy $ enforceNaked1Tuples
-handleAction Hidden1Tuples = handleStrategy$ enforceHiddenNTuples 1
-handleAction NakedTuples = handleStrategy enforceNakedTuples 
-handleAction HiddenTuples = handleStrategy enforceHiddenTuples
-
-------------------------------------------------------------------------
--- Action Helpers
-------------------------------------------------------------------------
-
-updateStateCell :: (Cell -> Cell -> Cell) -> Cell -> Index -> State -> State
-updateStateCell update with index state = state 
-  { userPuzzle = updateFn state.userPuzzle
-  , renderPuzzle = updateFn state.renderPuzzle
-  }
-  where
-    updateFn :: Stateful Puzzle -> Stateful Puzzle
-    updateFn puzzle = map (modifyAtIndex (update with) index) <$> puzzle
-
-handleStrategy :: ∀ output m. Strategy -> H.HalogenM State Action Slots output m Unit
-handleStrategy strat = H.modify_ \st -> st { renderPuzzle = stayOrFinish $ onlyAdvancing strat $ advanceOrFinish st.renderPuzzle }
-
 ------------------------------------------------------------------------
 -- Building the board
 ------------------------------------------------------------------------
@@ -189,7 +210,7 @@ makeHCCell board i = HH.slot _cell i HCCell.component (board !! i) $ HandleCell 
 makeHCBoard :: ∀ m. Board -> H.ComponentHTML Action Slots m
 makeHCBoard board = HH.div
   [ HP.classes [ HH.ClassName "ss-board-container" ] ]
-  $ concat $ makeLayoutCells <$> boardIndices
+  $ boardIndices >>= makeLayoutCells
   where
     makeLayoutCells :: Index -> Array (H.ComponentHTML Action Slots m)
     makeLayoutCells i = let 
@@ -219,3 +240,34 @@ makeHCBoard board = HH.div
       where
         pos = inc $ toNumber $ indexOf $ groupId $ toColumn index
         root = floor $ sqrt $ toNumber numOfOptions 
+
+------------------------------------------------------------------------
+-- Metaboard info readout
+------------------------------------------------------------------------
+
+makeHCMetaOutput :: ∀ widget input. Stateful Puzzle -> HH.HTML widget input
+makeHCMetaOutput puzzle = HH.div 
+  [ HP.classes [ HH.ClassName "ss-metaboard-info-readout" ] ]
+  [ HH.h4_ [ HH.text "Meta-information From Strategies" ] 
+  , HH.hr_
+  , HH.span_ $
+    [ HH.text "Puzzle State: " 
+    , HH.text $ constructorString puzzle
+    ] <> tagAddon
+  , tupleList
+  ]
+  where
+    meta :: MetaBoard
+    meta = fst $ unwrapStateful puzzle
+
+    tagAddon :: Array (HH.HTML widget input)
+    tagAddon = case puzzle of 
+      (Invalid err _) -> [ HH.br_, HH.text $ show err ]
+      otherwise -> []
+    
+    tupleList :: HH.HTML widget input
+    tupleList = HH.ul_ $ 
+      (\(Tuple count num) -> HH.li_ 
+        [ HH.text $ show count <> ": " <> show num ]
+      ) <$> toUnfoldable meta.tupleCount
+
