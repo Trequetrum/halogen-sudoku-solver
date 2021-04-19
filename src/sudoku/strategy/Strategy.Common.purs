@@ -92,13 +92,13 @@ ladderStrats strats puzzle =
   (Advancing puzzle) # foldl reducer seedValue restStrats
   where
     reducer :: StatefulStrategy -> StatefulStrategy -> StatefulStrategy
-    reducer acc next = advanceOrFinish >>> untilStableMeta (acc >>> next)
+    reducer acc next = untilStableMeta (acc >>> next) >>> advanceOrFinish
 
     metaStrats :: NonEmptyArray StatefulStrategy
     metaStrats = onlyAdvancing <$> strats
 
     seedValue :: StatefulStrategy
-    seedValue = (untilStableMeta $ head metaStrats)
+    seedValue = (untilStableMeta $ head metaStrats) >>> advanceOrFinish
 
     restStrats :: Array StatefulStrategy
     restStrats = tail metaStrats
