@@ -29,8 +29,11 @@ module Sudoku.Board
   , indexedCells
     -- Board Predicates
   , allCellsValid
+  , allCellsValid'
   , noForcedPeerDuplicates
+  , noForcedPeerDuplicates'
   , isValid
+  , isValid'
   , isSolved
   , isSolvedIffValid
   , isSolvedOrInvalid
@@ -43,10 +46,12 @@ where
 
 import Prelude
 
+import Control.Bind (bindFlipped)
 import Control.MonadZero (guard)
-import Data.Array (all, any, filter, length, mapWithIndex, unsafeIndex, (..))
+import Data.Array (all, any, filter, foldl, length, mapMaybe, mapWithIndex, unsafeIndex, (..))
 import Data.Array as Array
-import Data.Either (Either, note)
+import Data.Either (Either(..), note)
+import Data.Foldable (oneOf)
 import Data.Int as Ints
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), split)
@@ -55,14 +60,14 @@ import Error (Error(..))
 import Math (sqrt)
 import Partial.Unsafe (unsafePartial)
 import Safe.Coerce (coerce)
-import Sudoku.Cell (allOptionsCell, firstOption, isForced, notDisjoint, toCell)
+import Sudoku.Cell (allOptionsCell, asTokenString, firstOption, isForced, notDisjoint, toCell)
 import Sudoku.Cell as Cells
 import Sudoku.Cell.Internal (Cell(..))
-import Sudoku.Group (groupIndices, groups)
+import Sudoku.Group (Group, asIdString, groupIndices, groups)
 import Sudoku.Index (boundedIndex, toInt)
 import Sudoku.Index.Internal (Index(..))
-import Sudoku.Option (boundedOption, numOfOptions)
-import Utility (allUniqueEq, both, dropMaskPerIndex)
+import Sudoku.Option (Option, asString, boundedOption, invalidOption, numOfOptions)
+import Utility (allUniqueEq, both, dropMaskPerIndex, justWhen)
 
 -------------------------------------------------------------------
 -- Types
@@ -147,6 +152,12 @@ filterIndices pred board indices = filter (\i -> pred $ board !! i) indices
 findIndex :: (Cell -> Boolean) -> Board -> Maybe Index
 findIndex pred (Board array) = boundedIndex <$> Array.findIndex pred array
 
+-- | Return the first Index & Cell of a Cell that meets some predicate
+find :: (Cell -> Boolean) -> Board -> Maybe (Tuple Index Cell)
+find pred board = case findIndex pred board of
+  Nothing -> Nothing
+  (Just index) -> Just $ Tuple index $ board !! index
+
 -- | Converts a board into an array of indices and cells
 indexedCells :: Board -> Array (Tuple Index Cell)
 indexedCells (Board array) = mapWithIndex (\i c -> Tuple (boundedIndex i) c) array
@@ -160,6 +171,13 @@ indexedCells (Board array) = mapWithIndex (\i c -> Tuple (boundedIndex i) c) arr
 allCellsValid :: Board -> Boolean
 allCellsValid (Board array) = all Cells.isValid array
 
+-- | A version of allCellsValid that returns an error instead of false
+allCellsValid' :: Board -> Maybe Error
+allCellsValid' board = intoError <$> find (not <<< Cells.isValid) board
+  where
+    intoError (Tuple index cell) = Error "Invalid Cell" ("Board Position " <> show index <> 
+      " contains invalid cell with option(s): (" <> asTokenString cell <> ")")
+
 -- | Check that no group has two singleton Cells with the same option
 noForcedPeerDuplicates :: Board -> Boolean
 noForcedPeerDuplicates board = all allUniqueEq do
@@ -171,9 +189,39 @@ noForcedPeerDuplicates board = all allUniqueEq do
       Nothing -> []
       Just option -> pure option
 
+-- | Check that this group does not have two singleton Cells with the same option
+noForcedDuplicates :: Board -> Group -> Maybe Error
+noForcedDuplicates board group = 
+  case foldl folder (Right invalidOption) singletons of
+  Left err -> Just err
+  otherwise -> Nothing
+  where
+    singletons :: Array Option 
+    singletons = mapMaybe (boardIndex board >>> justWhen isForced >>> bindFlipped firstOption) (groupIndices group)
+    
+    folder :: Either Error Option -> Option -> Either Error Option
+    folder (Right option) nOption = 
+      if option /= nOption
+      then Right nOption
+      else Left $ Error "Duplicate Forced Options" (asIdString group <> 
+        " has two cells with option '" <> 
+        asString option <> "'")
+    folder leftError _ = leftError
+
+-- | A version of noForcedPeerDuplicates that returns an error instead of false
+noForcedPeerDuplicates' :: Board -> Maybe Error
+noForcedPeerDuplicates' board = oneOf $ noForcedDuplicates board <$> groups
+
 -- | Check that a board has both allCellsValid and noForcedPeerDuplicates
 isValid :: Board -> Boolean
 isValid = both allCellsValid noForcedPeerDuplicates
+
+-- | A version of isValid that returns an error instead of false
+isValid' :: Board -> Maybe Error
+isValid' board = case (allCellsValid' board), (noForcedPeerDuplicates' board) of
+  Nothing, Nothing -> Nothing
+  _, jer@(Just err) -> jer
+  jer@(Just err), Nothing -> jer
 
 -- | Check if a board has been solved
 isSolved :: Board -> Boolean

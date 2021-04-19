@@ -44,3 +44,4 @@ fromBoard board = Tuple blankMetaBoard board
 
 fromString :: String -> Either Error Puzzle
 fromString = Brd.fromString >>> map (Tuple blankMetaBoard)
+

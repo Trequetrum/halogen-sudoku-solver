@@ -4,13 +4,12 @@ import Prelude
 
 import Data.Either (fromRight)
 import Data.Maybe (fromMaybe)
-import Data.Tuple (Tuple(..))
 import Safe.Coerce (coerce)
 import Sudoku.Board (Board, fromCells, modifyAtIndex, unconstrainedBoard)
 import Sudoku.Cell (dropOptions, setOptions)
 import Sudoku.Cell.Internal (Cell(..))
 import Sudoku.Index (boundedIndex)
-import Sudoku.Puzzle (Puzzle, blankMetaBoard, fromBoard)
+import Sudoku.Puzzle (Puzzle, fromBoard)
 import Sudoku.Puzzle as Puzz
 
 startingBoardString :: String

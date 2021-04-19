@@ -20,10 +20,11 @@ import Prelude
 
 import Data.Array (foldl)
 import Data.Array.NonEmpty (NonEmptyArray, head, tail)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Tuple (snd)
 import Error (Error(..))
 import Stateful (Stateful(..), isInvalid, isSolved, unwrapStateful)
-import Sudoku.Board (isSolvedIffValid, isValid)
+import Sudoku.Board (isSolvedIffValid, isValid')
 import Sudoku.Puzzle (Puzzle)
 
 type Strategy = Puzzle -> Stateful Puzzle
@@ -55,19 +56,18 @@ advanceOrFinish p = case stayOrFinish p of
 
 -- | This is a StatefulStrategy that checks if a Puzzle is solved or invalid
 stayOrFinish :: StatefulStrategy
-stayOrFinish statefulPuzzle = 
-  if isSolved statefulPuzzle 
+stayOrFinish statefulPuzzle =
+  if isSolved statefulPuzzle || isInvalid statefulPuzzle
   then statefulPuzzle
-  else if isInvalid statefulPuzzle
-  then statefulPuzzle
-  else if not $ isValid board
-  then Invalid (Error "" "") puzzle
+  else if isJust isValidError
+  then Invalid (fromMaybe (Error "" "") isValidError) puzzle
   else if isSolvedIffValid board
   then Solved puzzle
   else statefulPuzzle
   where
     puzzle = unwrapStateful statefulPuzzle
     board = snd puzzle
+    isValidError = isValid' board
 
 -- | Take a Strategy and repeat it until the strategy returns a stable/finished board
 untilStable :: Strategy -> Strategy
@@ -92,13 +92,13 @@ ladderStrats strats puzzle =
   (Advancing puzzle) # foldl reducer seedValue restStrats
   where
     reducer :: StatefulStrategy -> StatefulStrategy -> StatefulStrategy
-    reducer acc next = untilStableMeta (acc >>> next) >>> advanceOrFinish
+    reducer acc next = advanceOrFinish >>> untilStableMeta (acc >>> next)
 
     metaStrats :: NonEmptyArray StatefulStrategy
     metaStrats = onlyAdvancing <$> strats
 
     seedValue :: StatefulStrategy
-    seedValue = (untilStableMeta $ head metaStrats) >>> advanceOrFinish
+    seedValue = (untilStableMeta $ head metaStrats)
 
     restStrats :: Array StatefulStrategy
     restStrats = tail metaStrats

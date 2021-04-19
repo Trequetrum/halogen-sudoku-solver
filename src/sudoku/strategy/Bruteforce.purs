@@ -20,6 +20,7 @@ import Prelude
 
 import Data.Array (findMap, (..))
 import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
+import Data.Bifunctor (lmap)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..), snd)
 import Error (Error(..))
@@ -62,6 +63,11 @@ selectMinOption board = Tuple <$> option <*> maybeI
       i <- maybeI
       pure $ board !! i # trustFirstOption
 
+updateBFMeta :: Boolean -> Puzzle -> Puzzle
+updateBFMeta success puzzle = case success of
+  true  -> lmap (\mb -> mb { bruteForce { guessed = mb.bruteForce.guessed + 1 } }) puzzle
+  false -> lmap (\mb -> mb { bruteForce { backtrack = mb.bruteForce.backtrack + 1 } }) puzzle
+
 -- | The slowest strategy, but it's guaranteed to solve any board
 -- | that is solvable. 
 -- |
@@ -83,13 +89,13 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
     bbfRecurse (Advancing puzzle) = 
       if isSolved (snd $ unwrapStateful guessAttempt) || isNothing selectedOption
       then guessAttempt
-      else nextPuzzle dropOptionOnPuzzle
+      else updateBFMeta false <$> nextPuzzle dropOptionOnPuzzle
       where
         selectedOption :: Maybe (Tuple Option Index)
         selectedOption = selector $ snd puzzle
 
         guessAttempt :: Stateful Puzzle
-        guessAttempt = nextPuzzle $ toggleCell >>> dropOptionOnPuzzle
+        guessAttempt = updateBFMeta true <$> (nextPuzzle $ toggleCell >>> dropOptionOnPuzzle)
 
         nextPuzzle action = case selectedOption of
           Nothing -> Invalid (Error "No Solutions" "After exhaustive search, this is a puzzle for which no solutions exist") puzzle

@@ -5,7 +5,6 @@ import Prelude
 import Data.Either (Either(..), isLeft)
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Debug (spy)
 import Safe.Coerce (coerce)
 import Sudoku.Board (allCellsValid, batchDropOptions, fromCells, isSolved, isSolvedOrInvalid, modifyAtIndex, noForcedPeerDuplicates, unconstrainedBoard)
 import Sudoku.Board as Brd
@@ -13,7 +12,7 @@ import Sudoku.Cell (dropOptions, isForced)
 import Sudoku.Cell.Internal (Cell(..))
 import Sudoku.Index (boundedIndex)
 import Test.Basic.Data (badCellboard1, badCellboard2, forcedCellDuplicateBoard, forcedCellDuplicateBoard2, startingBoard, startingBoardSolved, startingBoardString)
-import Test.Spec (Spec, describe, describeOnly, it, itOnly)
+import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 
 

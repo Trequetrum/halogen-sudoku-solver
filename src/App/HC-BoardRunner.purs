@@ -5,13 +5,14 @@ import Prelude
 import App.HC.Cell (Output(..))
 import App.HC.Cell as HCCell
 import App.Parseboards (easyPuzzles, hardPuzzles, hardestPuzzles)
-import Data.Array ((..))
+import Data.Array (length, (..))
 import Data.Foldable (for_)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (toNumber)
 import Data.Int as Ints
 import Data.Map (toUnfoldable)
 import Data.Tuple (Tuple(..), fst, snd)
+import Error (message, name)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -28,8 +29,8 @@ import Sudoku.Option (indexOf, numOfOptions)
 import Sudoku.Puzzle (Puzzle, MetaBoard, fromBoard)
 import Sudoku.Strategy.Bruteforce (ladderTupleBruteForce)
 import Sudoku.Strategy.Common (Strategy, advanceOrFinish, onlyAdvancing, stayOrFinish)
-import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceHiddenTuples, enforceNakedTuples)
-import Sudoku.Strategy.NTuplesWithMeta (enforceNaked1Tuples, enforceNTuples)
+import Sudoku.Strategy.NTuples (ladderTuples)
+import Sudoku.Strategy.NTuplesWithMeta (rollingEnforceNTuples)
 import Type.Prelude (Proxy(..))
 import Utility (inc)
 
@@ -53,6 +54,7 @@ data Action
   | Enforce2Tuples
   | Enforce3Tuples
   | Enforce4Tuples
+  | LadderTuples
 
 component :: ∀ query input output m. H.Component query input output m
 component =
@@ -109,10 +111,11 @@ handleAction Solve = do
   handleStrategy ladderTupleBruteForce
   handleAction ConstrainAll
 
-handleAction Enforce1Tuples = handleStrategy $ enforceNTuples 1
-handleAction Enforce2Tuples = handleStrategy $ enforceNTuples 2
-handleAction Enforce3Tuples = handleStrategy $ enforceNTuples 3
-handleAction Enforce4Tuples = handleStrategy $ enforceNTuples 4
+handleAction Enforce1Tuples = handleStrategy $ rollingEnforceNTuples 1
+handleAction Enforce2Tuples = handleStrategy $ rollingEnforceNTuples 2
+handleAction Enforce3Tuples = handleStrategy $ rollingEnforceNTuples 3
+handleAction Enforce4Tuples = handleStrategy $ rollingEnforceNTuples 4
+handleAction LadderTuples = handleStrategy $ ladderTuples
 
 ------------------------------------------------------------------------
 -- Action Helpers
@@ -161,6 +164,9 @@ hCActionsUi = HH.div
   , HH.button
     [ HE.onClick \_ -> Enforce4Tuples ]
     [ HH.text "4 Tuples" ]
+  , HH.button
+    [ HE.onClick \_ -> LadderTuples ]
+    [ HH.text "Ladder Tuples" ]
   ]
 
 ------------------------------------------------------------------------
@@ -247,27 +253,48 @@ makeHCBoard board = HH.div
 
 makeHCMetaOutput :: ∀ widget input. Stateful Puzzle -> HH.HTML widget input
 makeHCMetaOutput puzzle = HH.div 
-  [ HP.classes [ HH.ClassName "ss-metaboard-info-readout" ] ]
+  [ HP.classes [ HH.ClassName "ss-metaboard-info-readout" ] ] (
   [ HH.h4_ [ HH.text "Meta-information From Strategies" ] 
   , HH.hr_
   , HH.span_ $
     [ HH.text "Puzzle State: " 
     , HH.text $ constructorString puzzle
+    , HH.br_
     ] <> tagAddon
-  , tupleList
-  ]
+  , HH.hr_
+  ] <> tupleList <> bruteForce)
   where
     meta :: MetaBoard
     meta = fst $ unwrapStateful puzzle
 
     tagAddon :: Array (HH.HTML widget input)
     tagAddon = case puzzle of 
-      (Invalid err _) -> [ HH.br_, HH.text $ show err ]
+      (Invalid err _) -> [ HH.text (name err <> ":"), HH.br_, HH.text (message err) ]
       otherwise -> []
-    
-    tupleList :: HH.HTML widget input
-    tupleList = HH.ul_ $ 
-      (\(Tuple count num) -> HH.li_ 
-        [ HH.text $ show count <> ": " <> show num ]
-      ) <$> toUnfoldable meta.tupleCount
 
+    tupleList :: Array (HH.HTML widget input)
+    tupleList = if length lCount > 0 then
+      [ HH.text "NTuple: count" 
+      , HH.ul_ $ 
+        (\(Tuple count num) -> HH.li_ 
+          [ HH.text $ show count <> ": " <> show num ]
+        ) <$> lCount
+      ]
+      else []
+      where
+        lCount = toUnfoldable meta.tupleCount
+
+    bruteForce :: Array (HH.HTML widget input)
+    bruteForce = if length guesses > 0 then
+      [ HH.text "Brute Force Guesses:"
+      , HH.ul_ guesses
+      ]
+      else []
+      where 
+        guesses = 
+          (if meta.bruteForce.guessed > 0 then
+            [ HH.li_ [ HH.text $ "Good: " <> show meta.bruteForce.guessed ] ]
+            else []) <> 
+          (if meta.bruteForce.backtrack > 0 then
+            [ HH.li_ [ HH.text $ "Bad: " <> show meta.bruteForce.backtrack ] ]
+            else [])
