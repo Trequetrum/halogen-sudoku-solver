@@ -15,6 +15,7 @@ module Sudoku.Group
   , toBox
   , toGroups
 
+  , toGroupsIntersection
   , groupIndices
   , groupId
   , peerIndices
@@ -25,8 +26,9 @@ module Sudoku.Group
 
 import Prelude
 
-import Data.Array (filter, nub)
+import Data.Array (filter, foldl, head, intersect, nub, tail)
 import Data.Int as Ints
+import Data.Maybe (Maybe(..), fromMaybe)
 import Math (sqrt)
 import Sudoku.Index (toInt)
 import Sudoku.Index.Internal (Index, indicesBox, indicesCol, indicesRow)
@@ -138,6 +140,16 @@ toGroups index =
 -------------------------------------------------------------------
 -- Group Operations
 -------------------------------------------------------------------
+
+toGroupsIntersection :: Array Index -> Array Group
+toGroupsIntersection indices = folder (head grouped) (fromMaybe [] $ tail grouped)
+  where
+    grouped :: Array (Array Group)
+    grouped = toGroups <$> indices
+
+    folder :: Maybe (Array Group) -> Array (Array Group) -> Array Group
+    folder Nothing  _ = []
+    folder (Just h) t = foldl intersect h t
 
 groupIndices :: Group -> Array Index
 groupIndices (Row _ a) = a 

@@ -25,6 +25,8 @@
   , "tuples"
   , "typelevel-prelude"
   , "web-uievents"
+  , "now"
+  , "datetime"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

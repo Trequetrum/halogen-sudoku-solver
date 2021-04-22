@@ -9,7 +9,7 @@ module Sudoku.Strategy.NTuples where
 import Prelude
 
 import Control.MonadZero (guard)
-import Data.Array (concat, foldl, length, (..), (\\))
+import Data.Array (concat, elem, foldl, length, (..), (\\))
 import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.Int (floor, toNumber)
 import Data.List (List(..), (:))
@@ -17,30 +17,55 @@ import Data.List as L
 import Data.Maybe (Maybe(..))
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), snd)
+import Debug (spy)
 import Error (Error(..))
 import Stateful (Stateful(..), unwrapStateful)
 import Sudoku.Board (Action, Board, batchDropOptions, filterIndices, indexedCells, effective)
 import Sudoku.Cell (Cell, allCells, allOptionsCell, cellsOfSize, countOptions, dropOptions, isSuperset, notDisjoint, toggleCell)
 import Sudoku.Cell as Cells
-import Sudoku.Group (Group, asIdString, exPeerIndices, groupIndices, groups)
+import Sudoku.Group (Group, asIdString, exPeerIndices, groupIndices, groups, toGroupsIntersection)
 import Sudoku.Index (Index)
 import Sudoku.Option (numOfOptions)
 import Sudoku.Puzzle (Puzzle)
 import Sudoku.Strategy.Common (Strategy, ladderStrats)
 
-type NTuple = Tuple Cell (Array Index)
+data NTupleType = Gen | Naked | Hidden
+
+derive instance eqNTupleType :: Eq NTupleType
+
+type NTuple =
+  { tupleType :: NTupleType
+  , options :: Cell
+  , position :: Array Index
+  }
+
 type FindingTupleAlgorithm = Board -> Group -> Maybe (Array NTuple)
 
 -- | Returns the size of an nTuple
 nTupleSize :: NTuple -> Int
-nTupleSize (Tuple cell _) = countOptions cell
+nTupleSize {options} = countOptions options
 
 -- | Turn a Tuple into effective actions ( Actions that will alter the
 -- | state of the board that is passed in )
-toActions :: Boolean -> Board -> Group -> NTuple -> Array Action
-toActions naked board group (Tuple comb indices) = do
-  i <- if naked then groupIndices group \\ indices else indices
-  let action = Tuple i $ if naked then comb else toggleCell comb
+-- | If a tuple can be found in multiple groups, the actions returned 
+-- | effect all groups
+toActions :: Board -> NTuple -> Array Action
+toActions board {options, position} = do
+  group <- toGroupsIntersection position
+  i <- groupIndices group
+  let action = Tuple i if elem i position
+    then toggleCell options
+    else options
+  guard $ effective board action
+  pure action
+
+-- | Turn a Tuple into effective actions ( Actions that will alter the
+-- | state of the board that is passed in )
+-- | Actions are constrained to a single group
+toGroupActions :: Board -> Group -> NTuple -> Array Action
+toGroupActions board group {tupleType, options, position} = do
+  i <- if tupleType == Naked then groupIndices group \\ position else position
+  let action = Tuple i $ if tupleType == Naked then options else toggleCell options
   guard $ effective board action
   pure action
 
@@ -63,8 +88,8 @@ toActions naked board group (Tuple comb indices) = do
 -- |    illegalRel (countOptions possible cell) (count board cell) == true, then we s short circuit
 -- |    and return Nothing. Indicating we have a board that isn't legal
 findTuplesByPred :: (Cell -> Cell -> Boolean) -> (Int -> Int -> Boolean) -> 
-  List Cell -> FindingTupleAlgorithm
-findTuplesByPred tupleRel illegalRel optionCombinations board group = 
+  List Cell -> NTupleType -> FindingTupleAlgorithm
+findTuplesByPred tupleRel illegalRel optionCombinations tupleType board group = 
   find allOptionsCell optionCombinations (groupIndices group) (Just [])
   where
     find :: Cell -> List Cell -> Array Index ->  
@@ -85,7 +110,12 @@ findTuplesByPred tupleRel illegalRel optionCombinations board group =
           (dropOptions currComb options)
           restCombs
           (subgroup \\ matches)
-          (Just $ tuples <> (pure $ Tuple currComb matches))
+          (Just $ tuples <> (pure $ 
+            { tupleType
+            , options : currComb 
+            , position : matches
+            }
+          ))
         else if illegalRel (countOptions currComb) (length matches)
         then Nothing
         else find options restCombs subgroup jt
@@ -93,20 +123,20 @@ findTuplesByPred tupleRel illegalRel optionCombinations board group =
 -- | findTuplesByPred specialized to find Naked N Tuples
 -- |  * Int: is the size of tuples to look for
 findNakedNTuples :: Int -> FindingTupleAlgorithm
-findNakedNTuples size = findTuplesByPred isSuperset (<) $ L.fromFoldable $ cellsOfSize size
+findNakedNTuples size = findTuplesByPred isSuperset (<) (L.fromFoldable $ cellsOfSize size) Naked
 
 -- | findTuplesByPred specialized to find Hidden N Tuples
 -- |  * Int: is the size of tuples to look for
 findHiddenNTuples :: Int -> FindingTupleAlgorithm
-findHiddenNTuples size = findTuplesByPred notDisjoint (>) $ L.fromFoldable $ cellsOfSize size
+findHiddenNTuples size = findTuplesByPred notDisjoint (>) (L.fromFoldable $ cellsOfSize size) Hidden
 
 -- | findTuplesByPred specialized to find Naked Tuples
 findNakedTuples :: FindingTupleAlgorithm
-findNakedTuples = findTuplesByPred isSuperset (<) allCells
+findNakedTuples = findTuplesByPred isSuperset (<) allCells Naked
 
 -- | findTuplesByPred specialized to find Hidden Tuples
 findHiddenTuples :: FindingTupleAlgorithm
-findHiddenTuples = findTuplesByPred notDisjoint (>) allCells
+findHiddenTuples = findTuplesByPred notDisjoint (>) allCells Hidden
 
 -- | A very basic strategy, if a cell has only one option, then remove that option
 -- | from its peers. This has its own implemention because Naked 1 Tuples exist outside 
@@ -137,8 +167,8 @@ enforceNaked1Tuples puzzle =
 -- | If the first paramter is true, we assume they are Naked Tuples, otherwise we
 -- | assume they are are Hidden Tuples
 -- |
-enforceTuples :: Boolean -> FindingTupleAlgorithm -> Strategy
-enforceTuples naked findTuples puzzle = case maybeActions of
+enforceTuples :: FindingTupleAlgorithm -> Strategy
+enforceTuples findTuples puzzle = case maybeActions of
   Nothing -> Invalid (Error "Impossible Tuple" "enforceTuples found an impossible tuple") puzzle
   Just actions 
     | length actions < 1 -> Stable puzzle
@@ -152,30 +182,30 @@ enforceTuples naked findTuples puzzle = case maybeActions of
       group <- groups
       pure do
         tuples <- findTuples board group
-        pure $ concat $ toActions naked board group <$> tuples
+        pure $ concat $ toGroupActions board group <$> tuples
           
 
 -- | enforceNakedTuples' specialized with a tuple-finding algorithm that finds
 -- | tuples of any/all sizes
 enforceNakedTuples :: Strategy
-enforceNakedTuples = enforceTuples true findNakedTuples
+enforceNakedTuples = enforceTuples findNakedTuples
 
 -- | enforceNakedTuples' specialized with a tuple-finding algorithm that finds
 -- | tuples of the given size. Defers 1-Tuples to the specialised 
 -- | enforceNaked1Tuples implementation
 enforceNakedNTuples :: Int -> Strategy
 enforceNakedNTuples 1 = enforceNaked1Tuples
-enforceNakedNTuples n = enforceTuples true $ findNakedNTuples n
+enforceNakedNTuples n = enforceTuples $ findNakedNTuples n
 
 -- | enforceHiddenTuples' specialized with a tuple-finding algorithm that finds
 -- | tuples of any/all sizes
 enforceHiddenTuples :: Strategy
-enforceHiddenTuples = enforceTuples false findHiddenTuples 
+enforceHiddenTuples = enforceTuples findHiddenTuples 
 
 -- | enforceHiddenTuples' specialized with a tuple-finding algorithm that finds
 -- | tuples of the given size.
 enforceHiddenNTuples :: Int -> Strategy
-enforceHiddenNTuples = findHiddenNTuples >>> enforceTuples false
+enforceHiddenNTuples = findHiddenNTuples >>> enforceTuples
 
 -- | Creates a ladder strategy out of the tuple strategies in this module
 -- | See Sudoku.Strategy.Common for an explanation of ladderStrats
@@ -198,11 +228,11 @@ flooredSmallCells = L.fromFoldable $ 1 .. (floor $ toNumber numOfOptions / 2.0) 
 
 -- | findTuplesByPred specialized to find Naked Tuples
 findSmallNakedTuples :: FindingTupleAlgorithm
-findSmallNakedTuples = findTuplesByPred isSuperset (<) flooredSmallCells
+findSmallNakedTuples = findTuplesByPred isSuperset (<) flooredSmallCells Naked
 
 -- | findTuplesByPred specialized to find Hidden Tuples
 findSmallHiddenTuples :: FindingTupleAlgorithm
-findSmallHiddenTuples = findTuplesByPred notDisjoint (>) flooredSmallCells
+findSmallHiddenTuples = findTuplesByPred notDisjoint (>) flooredSmallCells Hidden
 
 -- | rollingEnforceHiddenTuples will find all actions in a group,
 -- | then apply those actions to the board before finding actions in the next group.
@@ -239,8 +269,8 @@ rollingEnforceTuples inputPuzzle = foldl
       maybeActions = do
         nakedTuples <- findSmallNakedTuples board group
         hiddenTuples <- findSmallHiddenTuples board group
-        let nakedActions = concat $ toActions true board group <$> nakedTuples
-        let hiddenActions = concat $ toActions false board group <$> hiddenTuples
+        let nakedActions = concat $ toGroupActions board group <$> nakedTuples
+        let hiddenActions = concat $ toGroupActions board group <$> hiddenTuples
         pure $ nakedActions <> hiddenActions 
       
     in case maybeActions of

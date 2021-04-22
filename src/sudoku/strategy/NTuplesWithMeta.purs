@@ -9,27 +9,56 @@ import Prelude
 import Control.MonadZero (guard)
 import Data.Array (catMaybes, filter, length, nub, (..), (\\))
 import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
-import Data.Bifunctor (lmap)
-import Data.Either (Either(..), either, fromRight)
+import Data.Bifunctor (bimap)
+import Data.Either (Either(..))
 import Data.Foldable (foldl, foldr)
 import Data.Map (Map, alter, fromFoldable, lookup)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), fst, snd)
+import Debug (spy)
 import Error (Error(..))
 import Stateful (Stateful(..), unwrapStateful)
-import Sudoku.Board (Action, Board, batchDropOptions, filterIndices)
+import Sudoku.Board (Board, batchDropOptions, filterIndices)
 import Sudoku.Cell (Cell, allOptionsCell, asTokenString, cellsOfSize, countOptions, dropOptions, noOptionsCell, setOptions)
 import Sudoku.Cell as Cll
 import Sudoku.Group (Group, asIdString, groupIndices, groups)
 import Sudoku.Index (Index)
 import Sudoku.Puzzle (MetaBoard, Puzzle)
 import Sudoku.Strategy.Common (Strategy, ladderStrats)
-import Sudoku.Strategy.NTuples (NTuple, nTupleSize, toActions)
+import Sudoku.Strategy.NTuples (NTuple, NTupleType(..), nTupleSize, toActions)
 
-updateTupleMeta :: Group -> Puzzle -> Array NTuple -> Puzzle
-updateTupleMeta _ puzzle [] = puzzle
-updateTupleMeta group puzzle tuples = lmap updateMeta puzzle
+updateTupleMeta :: Group -> Array NTuple -> MetaBoard -> MetaBoard
+updateTupleMeta _ [] board = board
+updateTupleMeta group tuples board = board
+  { tupleState = alter alterGroup group board.tupleState
+  , nakedTupleCount = tupleCount board.nakedTupleCount Naked
+  , hiddenTupleCount = tupleCount board.hiddenTupleCount Hidden
+  }
+  where
+    tupleCount :: Map Int Int -> NTupleType -> Map Int Int
+    tupleCount start tType = foldr (alter alterCount) start $ nTupleSize <$> filter (\{tupleType} -> tupleType == tType) tuples
+
+    alterCount :: Maybe Int -> Maybe Int
+    alterCount Nothing = Just 1
+    alterCount (Just n) = Just (n + 1) 
+
+    alterGroup :: Maybe (Map Int (Tuple Cell (Array Index))) -> Maybe (Map Int (Tuple Cell (Array Index)))
+    alterGroup Nothing = Just $ foldl tupleFolder (fromFoldable []) tuples
+    alterGroup (Just sizeMap) = Just $ foldl tupleFolder sizeMap tuples
+
+    tupleFolder :: Map Int (Tuple Cell (Array Index)) -> NTuple -> Map Int (Tuple Cell (Array Index))
+    tupleFolder sizeMap {tupleType, options, position} = alter alterIndices (countOptions options) sizeMap
+      where
+        alterIndices :: Maybe (Tuple Cell (Array Index)) -> Maybe (Tuple Cell (Array Index))
+        alterIndices Nothing = Just $ Tuple options position
+        alterIndices (Just (Tuple inputCell inputIndices)) = Just $ 
+          Tuple (setOptions inputCell options) (nub $ position <> inputIndices)
+
+{-
+mergeTupleMeta :: Group -> Puzzle -> Array NTuple -> Puzzle
+mergeTupleMeta _ puzzle [] = puzzle
+mergeTupleMeta group puzzle tuples = lmap updateMeta puzzle
   where
     updateMeta :: MetaBoard -> MetaBoard
     updateMeta mb = mb 
@@ -52,6 +81,8 @@ updateTupleMeta group puzzle tuples = lmap updateMeta puzzle
         alterIndices Nothing = Just nTuple
         alterIndices (Just (Tuple inputCell inputIndices)) = Just $ 
           Tuple (setOptions inputCell cell) (nub $ indices <> inputIndices)
+-}
+
 
 tupleState :: Int -> Group -> Puzzle -> Tuple Cell (Array Index)
 tupleState size group puzzle = 
@@ -72,17 +103,24 @@ tupleState size group puzzle =
       Tuple (setOptions cell nxtCell) (nub $ indices <> nxtIndices)
 
 isTupleState :: Puzzle -> Group -> NTuple -> Boolean
-isTupleState puzzle group tuple = isJust do
+isTupleState puzzle group tuple@{options} = isJust do
   stateGroup <- lookup group (fst puzzle # _.tupleState) 
-  stateSpace <- lookup (countOptions $ fst tuple) stateGroup
-  guard $ isSuperset stateSpace tuple
+  stateSpace <- lookup (countOptions $ options) stateGroup
+  guard $ isSuperset 
+    { tupleType: Gen
+    , options: fst stateSpace
+    , position: snd stateSpace 
+    } tuple
   pure true
 
 isSuperset :: NTuple -> NTuple -> Boolean
-isSuperset left right = oDiff && iDiff
+isSuperset 
+  {options: lOptions, position: lPosition} 
+  {options: rOptions, position: rPosition} 
+  = oDiff && iDiff
   where
-    oDiff = Cll.isSuperset (fst left) (fst right)
-    iDiff = length (snd right \\ snd left) == 0
+    oDiff = Cll.isSuperset lOptions rOptions
+    iDiff = length (rPosition \\ lPosition) == 0
 
 -- | This is a metaSearch because it leans on reliable metadata to narrow the search-space. 
 -- |
@@ -97,15 +135,8 @@ isSuperset left right = oDiff && iDiff
 -- |
 -- | This accomplishes a lot in one fell swoop. The implementation could probably be tidied up a bit.
 -- |
-findNTupleActions :: Int -> Puzzle -> Group -> Tuple Puzzle (Either Error (Array Action))
-findNTupleActions size puzzle group = either 
-  (Tuple puzzle <<< Left) 
-  (\_ -> either 
-    (Tuple puzzle <<< Left) 
-    (\_ -> Tuple (newMetaPuzzle unit) $ Right $ nakedActions <> hiddenActions) 
-    hiddenTuples
-  )
-  nakedTuples
+findNTuples :: Int -> Puzzle -> Group -> Either Error (Array NTuple)
+findNTuples size puzzle group = append <$> nakedTuples <*> hiddenTuples
   where
     board :: Board
     board = snd puzzle
@@ -128,49 +159,47 @@ findNTupleActions size puzzle group = either
     hiddenTuples :: Either Error (Array NTuple)
     hiddenTuples = catMaybes <$> (sequence $ checkIfHidden <$> combs)
 
-    newMetaPuzzle :: Unit -> Puzzle
-    newMetaPuzzle _ = updateTupleMeta group puzzle $
-      (fromRight [] nakedTuples) <> (fromRight [] hiddenTuples)
-
-    nakedActions :: Array Action
-    nakedActions = case nakedTuples of
-      (Left _) -> []
-      (Right tuples) -> tuples >>= toActions true board group 
-    
-    hiddenActions :: Array Action
-    hiddenActions = case hiddenTuples of
-      (Left _) -> []
-      (Right tuples) -> tuples >>= toActions false board group 
-
     checkIfNaked :: Cell -> Either Error (Maybe NTuple)
-    checkIfNaked comb = if failure 
-      then Left $ Error "Impossible Naked Tuple" ("Options [" <> 
-        asTokenString comb <> 
-        "] are a superset of " <> 
-        show (length matches) <> 
-        "cells in " <> asIdString group)
-      else if success
-      then Right $ Just $ Tuple comb matches
-      else Right Nothing
-      where
-        matches = filterIndices (Cll.isSuperset comb) board indices
-        success = countOptions comb == length matches
-        failure = countOptions comb < length matches
+    checkIfNaked = checkIf Naked Cll.isSuperset (<)
 
     checkIfHidden :: Cell -> Either Error (Maybe NTuple)
-    checkIfHidden comb = if failure 
-      then Left $ Error "Impossible Hidden Tuple" ("Option(s) [" <> 
-        asTokenString comb <> 
-        "] are not disjoint with " <> 
-        show (length matches) <> 
-        " cell(s) in " <> asIdString group)
+    checkIfHidden = checkIf Hidden Cll.notDisjoint (>)
+    
+    checkIf :: NTupleType -> 
+      (Cell -> Cell -> Boolean) -> 
+      (Int -> Int -> Boolean) -> 
+      Cell -> Either Error (Maybe NTuple)
+    checkIf tupleType tupleRel illegalRel comb = if failure
+      then Left $ findingError tuple group
       else if success
-      then Right $ Just $ Tuple comb matches
+      then Right (Just tuple)
       else Right Nothing
       where
-        matches = filterIndices (Cll.notDisjoint comb) board indices
+        matches = filterIndices (tupleRel comb) board indices
         success = countOptions comb == length matches
-        failure = countOptions comb > length matches
+        failure = countOptions comb `illegalRel` length matches
+        tuple = 
+          { tupleType: tupleType
+          , options : comb 
+          , position : matches
+          }
+
+findingError :: NTuple -> Group -> Error
+findingError {tupleType, options} group = Error ("Impossible " <> 
+  name <> " Tuple") ("Option(s) [" <> asTokenString options <> 
+  "] are " <> relationShip <> " cell(s) in " <> asIdString group)
+  where 
+    name :: String
+    name = case tupleType of
+      Naked -> "Naked"
+      Hidden -> "Hidden"
+      Gen -> "General"
+
+    relationShip :: String
+    relationShip = case tupleType of
+      Naked -> "a superset of "
+      Hidden -> "not disjoint with "
+      Gen -> "related to "
 
 -- | This applies tuples found in a group immediately before searching the
 -- | next group. This is more efficient, though a bit harder to reason about
@@ -184,14 +213,20 @@ rollingEnforceNTuples size inputPuzzle = foldl
     folder sop@(Solved _) _ = sop
     folder sPuzzle group = let
 
-      (Tuple newMeta eActions) =
-        findNTupleActions size (unwrapStateful sPuzzle) group
+      puzzle :: Puzzle
+      puzzle = unwrapStateful sPuzzle
 
-    in case eActions of
-      (Left err) -> Invalid err newMeta
-      (Right actions)
-        | length actions < 1 -> sPuzzle
-        | otherwise -> Advancing $ batchDropOptions actions <$> newMeta
+      eTuples :: Either Error (Array NTuple)
+      eTuples = findNTuples size puzzle group
+
+    in case eTuples of
+      (Left err) -> Invalid err puzzle
+      (Right tuples)
+        | length tuples < 1 -> sPuzzle
+        | otherwise -> let ttt = spy "tuples" tuples in Advancing $ bimap 
+          (updateTupleMeta group tuples) 
+          (batchDropOptions $ tuples >>= ( toActions $ snd puzzle )) 
+          puzzle
 
 ladderTuples :: Strategy
 ladderTuples = ladderStrats $ NonEmptyArray
@@ -200,3 +235,6 @@ ladderTuples = ladderStrats $ NonEmptyArray
   , rollingEnforceNTuples 3 
   , rollingEnforceNTuples 4 
   ]
+
+-- affEnforceNTuples :: Int -> Puzzle -> Aff (Stateful Puzzle)
+-- affEnforceNTuples size inputPuzzle = pure ?unit

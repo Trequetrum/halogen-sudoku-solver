@@ -6,12 +6,19 @@ import App.HC.Cell (Output(..))
 import App.HC.Cell as HCCell
 import App.Parseboards (easyPuzzles, hardPuzzles, hardestPuzzles)
 import Data.Array (length, (..))
+import Data.DateTime (diff)
+import Data.DateTime.Instant (toDateTime)
 import Data.Foldable (for_)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (toNumber)
 import Data.Int as Ints
 import Data.Map (toUnfoldable)
+import Data.Maybe (Maybe(..))
+import Data.Time.Duration (Milliseconds)
 import Data.Tuple (Tuple(..), fst, snd)
+import Debug (spy)
+import Effect.Class (class MonadEffect)
+import Effect.Now (now)
 import Error (message, name)
 import Halogen as H
 import Halogen.HTML as HH
@@ -40,6 +47,7 @@ _cell = Proxy :: Proxy "cell"
 type State = 
   { userPuzzle :: Stateful Puzzle
   , renderPuzzle :: Stateful Puzzle
+  , stratTime :: Maybe Milliseconds
   }
 
 data Action
@@ -55,7 +63,7 @@ data Action
   | Enforce4Tuples
   | LadderTuples
 
-component :: ∀ query input output m. H.Component query input output m
+component :: ∀ query input output m. MonadEffect m => H.Component query input output m
 component =
   H.mkComponent
     { initialState: \_ -> initialState
@@ -67,6 +75,7 @@ initialState :: State
 initialState = 
   { userPuzzle : untouchedPuzzle
   , renderPuzzle : untouchedPuzzle
+  , stratTime : Nothing
   }
   where
     untouchedPuzzle :: Stateful Puzzle
@@ -93,7 +102,8 @@ render state = HH.div
   , selectAPuzzle
   ]
 
-handleAction :: ∀ output m. Action → H.HalogenM State Action Slots output m Unit
+handleAction :: ∀ output m. MonadEffect m => Action → 
+  H.HalogenM State Action Slots output m Unit
 handleAction Blank = H.modify_ \_ -> initialState
 handleAction Reset = H.modify_ \st -> st { renderPuzzle = st.userPuzzle }
 handleAction ConstrainAll = for_ boardIndices \i -> H.tell _cell i HCCell.Constrain
@@ -129,8 +139,17 @@ updateStateCell update with index state = state
     updateFn :: Stateful Puzzle -> Stateful Puzzle
     updateFn puzzle = map (modifyAtIndex (update with) index) <$> puzzle
 
-handleStrategy :: ∀ output m. Strategy -> H.HalogenM State Action Slots output m Unit
-handleStrategy strat = H.modify_ \st -> st { renderPuzzle = stayOrFinish $ onlyAdvancing strat $ advanceOrFinish st.renderPuzzle }
+handleStrategy :: ∀ output m.  
+  MonadEffect m => Strategy -> 
+  H.HalogenM State Action Slots output m Unit
+handleStrategy strat = do
+  state <- H.get
+  startTime <- H.liftEffect now
+  let applyStrat = stayOrFinish $ onlyAdvancing strat $ advanceOrFinish state.renderPuzzle
+  endTime <- H.liftEffect now
+  let duration = spy "duration" $ diff (toDateTime endTime) (toDateTime startTime)
+  H.modify_ _{ renderPuzzle = applyStrat, stratTime = Just duration }
+
 
 ------------------------------------------------------------------------
 -- Action Buttons
@@ -281,7 +300,7 @@ makeHCMetaOutput puzzle = HH.div
       ]
       else []
       where
-        lCount = toUnfoldable meta.tupleCount
+        lCount = toUnfoldable meta.nakedTupleCount
 
     bruteForce :: Array (HH.HTML widget input)
     bruteForce = if length guesses > 0 then
