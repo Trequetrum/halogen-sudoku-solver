@@ -32,16 +32,25 @@ updateTupleMeta :: Group -> Array NTuple -> MetaBoard -> MetaBoard
 updateTupleMeta _ [] board = board
 updateTupleMeta group tuples board = board
   { tupleState = alter alterGroup group board.tupleState
-  , nakedTupleCount = tupleCount board.nakedTupleCount Naked
-  , hiddenTupleCount = tupleCount board.hiddenTupleCount Hidden
+  , tupleCount = foldr 
+      (\tuple -> alter (alterCount tuple) (nTupleSize tuple))
+      board.tupleCount
+      tuples
   }
   where
-    tupleCount :: Map Int Int -> NTupleType -> Map Int Int
-    tupleCount start tType = foldr (alter alterCount) start $ nTupleSize <$> filter (\{tupleType} -> tupleType == tType) tuples
-
-    alterCount :: Maybe Int -> Maybe Int
-    alterCount Nothing = Just 1
-    alterCount (Just n) = Just (n + 1) 
+    alterCount 
+      :: NTuple
+      -> Maybe { naked :: Int, hidden :: Int, gen :: Int } 
+      -> Maybe { naked :: Int, hidden :: Int, gen :: Int }
+    alterCount tuple Nothing = alterCount tuple $ Just 
+      { naked : 0
+      , hidden : 0
+      , gen : 0
+      }
+    alterCount tuple (Just n) = Just case tuple.tupleType of
+      Gen ->    n { gen    = n.gen    + 1 }
+      Naked ->  n { naked  = n.naked  + 1 }
+      Hidden -> n { hidden = n.hidden + 1 }
 
     alterGroup :: Maybe (Map Int (Tuple Cell (Array Index))) -> Maybe (Map Int (Tuple Cell (Array Index)))
     alterGroup Nothing = Just $ foldl tupleFolder (fromFoldable []) tuples

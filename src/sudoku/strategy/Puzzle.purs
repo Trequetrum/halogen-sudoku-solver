@@ -20,8 +20,11 @@ import Sudoku.Index (Index)
 
 type MetaBoard = 
   { tupleState :: Map Group (Map Int (Tuple Cell (Array Index)))
-  , nakedTupleCount :: Map Int Int
-  , hiddenTupleCount :: Map Int Int
+  , tupleCount :: Map Int 
+    { naked :: Int
+    , hidden :: Int
+    , gen :: Int
+    }
   , bruteForce ::
     { guessed :: Int
     , backtrack :: Int
@@ -33,8 +36,7 @@ type Puzzle = Tuple MetaBoard Board
 blankMetaBoard :: MetaBoard
 blankMetaBoard = 
   { tupleState: fromFoldable []
-  , nakedTupleCount: fromFoldable []
-  , hiddenTupleCount: fromFoldable []
+  , tupleCount: fromFoldable []
   , bruteForce: 
     { guessed: 0
     , backtrack: 0

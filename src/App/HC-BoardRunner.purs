@@ -150,7 +150,6 @@ handleStrategy strat = do
   let duration = spy "duration" $ diff (toDateTime endTime) (toDateTime startTime)
   H.modify_ _{ renderPuzzle = applyStrat, stratTime = Just duration }
 
-
 ------------------------------------------------------------------------
 -- Action Buttons
 ------------------------------------------------------------------------
@@ -158,34 +157,27 @@ handleStrategy strat = do
 hCActionsUi :: ∀ widget. HH.HTML widget Action
 hCActionsUi = HH.div
   [ HP.classes [ HH.ClassName "ss-actions-container" ] ]
-  [ HH.button
-    [ HE.onClick \_ -> Blank ]
-    [ HH.text "Blank Board" ]
-  , HH.button
-    [ HE.onClick \_ -> Reset ]
-    [ HH.text "Reset" ]
-  , HH.button
-    [ HE.onClick \_ -> ConstrainAll ]
-    [ HH.text "Enlarge Singletons" ]
-  , HH.button
-    [ HE.onClick \_ -> Solve ]
-    [ HH.text "Solve" ]
-  , HH.button
-    [ HE.onClick \_ -> Enforce1Tuples ]
-    [ HH.text "1 Tuples" ]
-  , HH.button
-    [ HE.onClick \_ -> Enforce2Tuples ]
-    [ HH.text "2 Tuples" ]
-  , HH.button
-    [ HE.onClick \_ -> Enforce3Tuples ]
-    [ HH.text "3 Tuples" ]
-  , HH.button
-    [ HE.onClick \_ -> Enforce4Tuples ]
-    [ HH.text "4 Tuples" ]
-  , HH.button
-    [ HE.onClick \_ -> LadderTuples ]
-    [ HH.text "Ladder Tuples" ]
+  [ makeActionButton Blank "Blank Board"
+  , makeActionButton Reset "Reset"
+  , makeActionButton ConstrainAll "Enlarge Singletons"
+  , makeActionButton Solve "Solve"
+  , makeActionButton Enforce1Tuples "1 Tuples"
+  , makeActionButton Enforce2Tuples "2 Tuples"
+  , makeActionButton Enforce3Tuples "3 Tuples"
+  , makeActionButton Enforce4Tuples "4 Tuples"
+  , makeActionButton LadderTuples "Ladder Tuples"
   ]
+
+makeActionButton :: ∀ widget. Action -> String -> HH.HTML widget Action
+makeActionButton action strng = HH.button
+  [ HE.onClick \_ -> action 
+  , HP.classes 
+    [ HH.ClassName "mdc-button"
+    , HH.ClassName "mdc-button--outlined"
+    , HH.ClassName "mdc-button--raised"
+    ] 
+  ]
+  [ HH.text strng ]
 
 ------------------------------------------------------------------------
 -- Pre-build Puzzle Buttons
@@ -292,15 +284,17 @@ makeHCMetaOutput puzzle = HH.div
 
     tupleList :: Array (HH.HTML widget input)
     tupleList = if length lCount > 0 then
-      [ HH.text "NTuple: count" 
+      [ HH.text "Tuple size: (naked,hidden)" 
       , HH.ul_ $ 
-        (\(Tuple count num) -> HH.li_ 
-          [ HH.text $ show count <> ": " <> show num ]
+        (\(Tuple count {naked, hidden}) -> HH.li_ 
+          [ HH.text $ show count <> ": (" <> 
+            show naked <> "," <> show hidden <> ")" 
+          ]
         ) <$> lCount
       ]
       else []
       where
-        lCount = toUnfoldable meta.nakedTupleCount
+        lCount = toUnfoldable meta.tupleCount
 
     bruteForce :: Array (HH.HTML widget input)
     bruteForce = if length guesses > 0 then
