@@ -1,3 +1,31 @@
+
+# Buttons that Solve Sudoku Puzzles
+
+Github Pages Address for this repo: https://trequetrum.github.io/halogen-sudoku-solver/  
+You can see the last deployment date by checking the last commit to the **/docs** folder.
+
+---------
+
+## Nothing Fancy
+
+This was conceived as a quickly hacked together front-end without much thought toward polish or a dialed in user experience. 
+
+ * Sometimes it's nice to have buttons for algorithms.   
+ * Try different inputs and watch how the output changes.
+
+This project is a way to interactively try some of the algorithms written in my purescript sudoku solver repo. [[link]](https://github.com/Trequetrum/purescript-sudoku-solver).
+
+## About
+
+The current UI is largely self-explanitory. It's worth mentioning that ctrl+clicking on an option for a cell in the Sudoku Board removes all other options for that cell. This is a helpful way to quickly enter your own puzzle to try things out. The reset button will only undo changes created by the various algorithms so you can use it a way to rest the board to the last user-created state.
+
+## Building for Github Pages
+
+./build-gh-pages is a bash script that deploys this halogen-based SPA into **/docs** so that it plays nice with Github pages.
+
+
+------
+
 # Halogen Template
 
 ### Quick Start
