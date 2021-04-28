@@ -17,6 +17,7 @@ import Data.Maybe (Maybe(..), isJust)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), fst, snd)
 import Debug (spy)
+import Effect.Aff (Aff)
 import Error (Error(..))
 import Stateful (Stateful(..), unwrapStateful)
 import Sudoku.Board (Board, batchDropOptions, filterIndices)
@@ -25,7 +26,7 @@ import Sudoku.Cell as Cll
 import Sudoku.Group (Group, asIdString, groupIndices, groups)
 import Sudoku.Index (Index)
 import Sudoku.Puzzle (MetaBoard, Puzzle)
-import Sudoku.Strategy.Common (Strategy, ladderStrats)
+import Sudoku.Strategy.Common (Strategy, affLadderStrats, ladderStrats)
 import Sudoku.Strategy.NTuples (NTuple, NTupleType(..), nTupleSize, toActions)
 
 updateTupleMeta :: Group -> Array NTuple -> MetaBoard -> MetaBoard
@@ -232,18 +233,24 @@ rollingEnforceNTuples size inputPuzzle = foldl
       (Left err) -> Invalid err puzzle
       (Right tuples)
         | length tuples < 1 -> sPuzzle
-        | otherwise -> let ttt = spy "tuples" tuples in Advancing $ bimap 
+        | otherwise -> {- let ttt = spy "tuples" tuples in-} Advancing $ bimap 
           (updateTupleMeta group tuples) 
           (batchDropOptions $ tuples >>= ( toActions $ snd puzzle )) 
           puzzle
 
-ladderTuples :: Strategy
-ladderTuples = ladderStrats $ NonEmptyArray
+ladderOrder :: NonEmptyArray Strategy
+ladderOrder = NonEmptyArray
   [ rollingEnforceNTuples 1
   , rollingEnforceNTuples 2 
   , rollingEnforceNTuples 3 
   , rollingEnforceNTuples 4 
   ]
+
+ladderTuples :: Strategy
+ladderTuples = ladderStrats ladderOrder
+
+affLadderTuples :: Puzzle -> Aff (Stateful Puzzle)
+affLadderTuples = affLadderStrats ladderOrder
 
 -- affEnforceNTuples :: Int -> Puzzle -> Aff (Stateful Puzzle)
 -- affEnforceNTuples size inputPuzzle = pure ?unit

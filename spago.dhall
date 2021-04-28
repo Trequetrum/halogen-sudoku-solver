@@ -27,6 +27,8 @@
   , "web-uievents"
   , "now"
   , "datetime"
+  , "enums"
+  , "unsafe-coerce"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

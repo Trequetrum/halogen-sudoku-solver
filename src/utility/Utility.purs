@@ -5,8 +5,10 @@ import Prelude
 import Data.Array (filter, find, length, nub, nubEq, unsafeIndex, (!!))
 import Data.Int (fromString)
 import Data.Maybe (Maybe(..), isNothing, maybe)
+import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple, fst, snd, swap)
+import Effect.Aff (Aff, delay)
 import Partial.Unsafe (unsafePartial)
 
 foreign import modifyPerIndex_impl :: ∀ a.
@@ -91,3 +93,8 @@ justWhen pred v = if pred v then Just v else Nothing
 
 inc :: Number -> Number
 inc = (_ + 1.0)
+
+affFn :: forall a b. (a -> b) -> a -> Aff b
+affFn fn a = do
+  delay $ Milliseconds 0.0
+  pure $ fn a

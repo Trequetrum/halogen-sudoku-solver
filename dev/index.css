@@ -23,24 +23,10 @@
   display: flexbox
 }
 
-/*
-.ss-select-sudoku button {
-  width: 25px;
-  height: 25px;
-  border: 0 none transparent;
-  padding:0;
-  margin:0;
-}
-*/
-
 .ss-actions-container {
   grid-area: actions;
   display: flex;
   flex-direction: column;
-}
-
-.ss-actions-container > button {
-  
 }
 
 .ss-option-open {

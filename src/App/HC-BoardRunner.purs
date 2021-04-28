@@ -17,7 +17,7 @@ import Data.Maybe (Maybe(..))
 import Data.Time.Duration (Milliseconds)
 import Data.Tuple (Tuple(..), fst, snd)
 import Debug (spy)
-import Effect.Class (class MonadEffect)
+import Effect.Aff.Class (class MonadAff)
 import Effect.Now (now)
 import Error (message, name)
 import Halogen as H
@@ -34,9 +34,9 @@ import Sudoku.Index (boardIndices)
 import Sudoku.Index.Internal (Index)
 import Sudoku.Option (indexOf, numOfOptions)
 import Sudoku.Puzzle (Puzzle, MetaBoard, fromBoard)
-import Sudoku.Strategy.Bruteforce (ladderTupleBruteForce)
+import Sudoku.Strategy.Bruteforce (affBacktrackingBruteForce, affLadderTupleBruteForce, ladderTupleBruteForce)
 import Sudoku.Strategy.Common (Strategy, advanceOrFinish, onlyAdvancing, stayOrFinish)
-import Sudoku.Strategy.NTuplesWithMeta (rollingEnforceNTuples, ladderTuples)
+import Sudoku.Strategy.NTuplesWithMeta (affLadderTuples, ladderTuples, rollingEnforceNTuples)
 import Type.Prelude (Proxy(..))
 import Utility (inc)
 
@@ -57,13 +57,14 @@ data Action
   | HandleCell Index HCCell.Output
   | NewPuzzle Puzzle
   | Solve
+  | AsyncSolve
   | Enforce1Tuples
   | Enforce2Tuples
   | Enforce3Tuples
   | Enforce4Tuples
   | LadderTuples
 
-component :: ∀ query input output m. MonadEffect m => H.Component query input output m
+component :: ∀ query input output m. MonadAff m => H.Component query input output m
 component =
   H.mkComponent
     { initialState: \_ -> initialState
@@ -102,7 +103,7 @@ render state = HH.div
   , selectAPuzzle
   ]
 
-handleAction :: ∀ output m. MonadEffect m => Action → 
+handleAction :: ∀ output m. MonadAff m => Action → 
   H.HalogenM State Action Slots output m Unit
 handleAction Blank = H.modify_ \_ -> initialState
 handleAction Reset = H.modify_ \st -> st { renderPuzzle = st.userPuzzle }
@@ -118,6 +119,16 @@ handleAction (HandleCell index output) = case output of
 
 handleAction Solve = do
   handleStrategy ladderTupleBruteForce
+  handleAction ConstrainAll
+
+handleAction AsyncSolve = do
+  state <- H.get
+  startTime <- H.liftEffect now
+  strated <- H.liftAff $ affLadderTupleBruteForce $ unwrapStateful state.renderPuzzle
+  let applyStrat = stayOrFinish strated
+  endTime <- H.liftEffect now
+  let duration = spy "AFF Duration" $ diff (toDateTime endTime) (toDateTime startTime)
+  H.modify_ _{ renderPuzzle = applyStrat, stratTime = Just duration }
   handleAction ConstrainAll
 
 handleAction Enforce1Tuples = handleStrategy $ rollingEnforceNTuples 1
@@ -140,14 +151,14 @@ updateStateCell update with index state = state
     updateFn puzzle = map (modifyAtIndex (update with) index) <$> puzzle
 
 handleStrategy :: ∀ output m.  
-  MonadEffect m => Strategy -> 
+  MonadAff m => Strategy -> 
   H.HalogenM State Action Slots output m Unit
 handleStrategy strat = do
   state <- H.get
   startTime <- H.liftEffect now
   let applyStrat = stayOrFinish $ onlyAdvancing strat $ advanceOrFinish state.renderPuzzle
   endTime <- H.liftEffect now
-  let duration = spy "duration" $ diff (toDateTime endTime) (toDateTime startTime)
+  let duration = spy "Duration" $ diff (toDateTime endTime) (toDateTime startTime)
   H.modify_ _{ renderPuzzle = applyStrat, stratTime = Just duration }
 
 ------------------------------------------------------------------------
@@ -157,10 +168,13 @@ handleStrategy strat = do
 hCActionsUi :: ∀ widget. HH.HTML widget Action
 hCActionsUi = HH.div
   [ HP.classes [ HH.ClassName "ss-actions-container" ] ]
-  [ makeActionButton Blank "Blank Board"
+  [ HH.h5_ [ HH.text "Sudoku Actions" ]
+  , makeActionButton Blank "Blank Board"
   , makeActionButton Reset "Reset"
   , makeActionButton ConstrainAll "Enlarge Singletons"
+  , HH.h5_ [ HH.text "Sudoku Algorithms" ]
   , makeActionButton Solve "Solve"
+  , makeActionButton AsyncSolve "Async Solve"
   , makeActionButton Enforce1Tuples "1 Tuples"
   , makeActionButton Enforce2Tuples "2 Tuples"
   , makeActionButton Enforce3Tuples "3 Tuples"

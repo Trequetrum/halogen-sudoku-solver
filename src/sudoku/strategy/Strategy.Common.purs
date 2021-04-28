@@ -22,10 +22,12 @@ import Data.Array (foldl)
 import Data.Array.NonEmpty (NonEmptyArray, head, tail)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Tuple (snd)
+import Effect.Aff (Aff)
 import Error (Error(..))
 import Stateful (Stateful(..), isInvalid, isSolved, unwrapStateful)
 import Sudoku.Board (isSolvedIffValid, isValid')
 import Sudoku.Puzzle (Puzzle)
+import Utility (affFn)
 
 type Strategy = Puzzle -> Stateful Puzzle
 
@@ -46,14 +48,6 @@ onlyAdvancing :: Strategy -> StatefulStrategy
 onlyAdvancing strat (Advancing puzzle) = strat puzzle
 onlyAdvancing _ statefulPuzzle = statefulPuzzle
 
--- | This is a StatefulStrategy that checks if a Puzzle is solved or invalid and 
--- | never returns a Stable Puzzle. This can be used to compose onlyAdvancing
--- | strategies 
-advanceOrFinish :: StatefulStrategy
-advanceOrFinish p = case stayOrFinish p of
-  (Stable a) -> Advancing a
-  notStable -> notStable
-
 -- | This is a StatefulStrategy that checks if a Puzzle is solved or invalid
 stayOrFinish :: StatefulStrategy
 stayOrFinish statefulPuzzle =
@@ -68,6 +62,14 @@ stayOrFinish statefulPuzzle =
     puzzle = unwrapStateful statefulPuzzle
     board = snd puzzle
     isValidError = isValid' board
+
+-- | This is a StatefulStrategy that checks if a Puzzle is solved or invalid and 
+-- | never returns a Stable Puzzle. This can be used to compose onlyAdvancing
+-- | strategies 
+advanceOrFinish :: StatefulStrategy
+advanceOrFinish p = case stayOrFinish p of
+  (Stable a) -> Advancing a
+  notStable -> notStable
 
 -- | Take a Strategy and repeat it until the strategy returns a stable/finished board
 untilStable :: Strategy -> Strategy
@@ -89,16 +91,32 @@ untilStableMeta _ p = p
 -- | do not need to check if they've solved a board.
 ladderStrats :: NonEmptyArray Strategy -> Strategy
 ladderStrats strats puzzle =
-  (Advancing puzzle) # foldl reducer seedValue restStrats
+  (Advancing puzzle) # foldl ladderCompose 
+    (untilStableMeta $ head metaStrats) (tail metaStrats)
   where
-    reducer :: StatefulStrategy -> StatefulStrategy -> StatefulStrategy
-    reducer acc next = untilStableMeta (acc >>> next) >>> advanceOrFinish
+    ladderCompose :: StatefulStrategy -> StatefulStrategy -> StatefulStrategy
+    ladderCompose acc next = untilStableMeta $ acc >>> advanceOrFinish >>> next
 
     metaStrats :: NonEmptyArray StatefulStrategy
     metaStrats = onlyAdvancing <$> strats
 
-    seedValue :: StatefulStrategy
-    seedValue = (untilStableMeta $ head metaStrats) >>> advanceOrFinish
+-------------------------------------------------------------------
+-- Experimental Asynchronous Strategies
+-------------------------------------------------------------------
 
-    restStrats :: Array StatefulStrategy
-    restStrats = tail metaStrats
+affUntilStableMeta :: (Stateful Puzzle -> Aff (Stateful Puzzle)) -> Stateful Puzzle -> Aff (Stateful Puzzle)
+affUntilStableMeta strat p@(Advancing _) = strat p >>= affUntilStableMeta strat 
+affUntilStableMeta _ p = pure p
+
+affLadderStrats :: NonEmptyArray Strategy -> Puzzle -> Aff (Stateful Puzzle)
+affLadderStrats strats puzzle = (Advancing puzzle) # foldl ladderbind 
+    (affUntilStableMeta $ head metaStrats) (tail metaStrats)
+  where
+    ladderbind 
+      :: (Stateful Puzzle -> Aff (Stateful Puzzle)) 
+      -> (Stateful Puzzle -> Aff (Stateful Puzzle))
+      -> Stateful Puzzle -> Aff (Stateful Puzzle)
+    ladderbind acc next puzz = affUntilStableMeta (\p -> acc p >>= (advanceOrFinish >>> next)) puzz
+
+    metaStrats :: NonEmptyArray (Stateful Puzzle -> Aff (Stateful Puzzle))
+    metaStrats = (onlyAdvancing >>> affFn) <$> strats
