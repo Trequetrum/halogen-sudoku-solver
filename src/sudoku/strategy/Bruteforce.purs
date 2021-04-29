@@ -23,17 +23,18 @@ import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.Bifunctor (lmap)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..), snd)
+import Debug (spy)
 import Effect.Aff (Aff)
 import Error (Error(..))
 import Stateful (Stateful(..), unwrapStateful)
 import Sudoku.Board (Board, batchDropOptions, findIndex, isSolved, (!!))
-import Sudoku.Cell (countOptions, toCell, toggleCell, trustFirstOption)
+import Sudoku.Cell (Cell, countOptions, toCell, toggleCell, trustFirstOption)
 import Sudoku.Index (Index)
 import Sudoku.Option (Option, numOfOptions)
 import Sudoku.Puzzle (Puzzle)
+import Sudoku.Strategy.BasicNTuples (enforceHiddenNTuples, enforceNakedNTuples)
 import Sudoku.Strategy.Common (Strategy, StatefulStrategy, advanceOrFinish, ladderStrats)
-import Sudoku.Strategy.NTuples (enforceHiddenNTuples, enforceNakedNTuples)
-import Sudoku.Strategy.NTuplesWithMeta (ladderTuples)
+import Sudoku.Strategy.MetaNTuples (ladderTuples)
 import Utility (affFn)
 
 type Selector = Board -> Maybe (Tuple Option Index)
@@ -88,10 +89,10 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
     bbfRecurse sop@(Solved _) = sop
     bbfRecurse ip@(Invalid _ _) = ip
     bbfRecurse sp@(Stable _) = bbfRecurse $ advanceOrFinish sp
-    bbfRecurse (Advancing puzzle) = 
-      if isSolved (snd $ unwrapStateful guessAttempt) || isNothing selectedOption
-      then guessAttempt
-      else updateBFMeta false <$> nextPuzzle dropOptionOnPuzzle
+    bbfRecurse (Advancing puzzle) = case guessAttempt, selectedOption of
+      ga@(Solved _), _ -> ga
+      ga@(Invalid _ _), Nothing -> ga
+      _, _ -> updateBFMeta false <$> nextPuzzle dropOptionOnPuzzle
       where
         selectedOption :: Maybe (Tuple Option Index)
         selectedOption = selector $ snd puzzle
@@ -99,12 +100,15 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
         guessAttempt :: Stateful Puzzle
         guessAttempt = updateBFMeta true <$> (nextPuzzle $ toggleCell >>> dropOptionOnPuzzle)
 
+        nextPuzzle :: (Cell -> Index -> Puzzle) -> Stateful Puzzle
         nextPuzzle action = case selectedOption of
           Nothing -> Invalid (Error "No Solutions" "After exhaustive search, this is a puzzle for which no solutions exist") puzzle
           Just (Tuple option index) -> 
-            bbfRecurse $ strat $ action (toCell option) index
+            bbfRecurse $ advanceOrFinish $ strat $ action (toCell option) index
 
+        dropOptionOnPuzzle :: Cell -> Index -> Puzzle
         dropOptionOnPuzzle option index = batchDropOptions [Tuple index option] <$> puzzle
+
 
 -- | This is losely the strategy for solving Sudokus outlined in "Solving Every 
 -- | Sudoku Puzzle" by Peter Norvig.
@@ -121,6 +125,10 @@ ladderTupleBruteForce :: Strategy
 ladderTupleBruteForce = backtrackingBruteForce
   selectMinOption ladderTuples
 
+
+-- | Brute Force that delays after each guess and delegated future work
+-- | to the event loop. This stops this computation from monopolising the main thread
+-- |
 affBacktrackingBruteForce :: Selector -> Strategy -> Puzzle -> Aff (Stateful Puzzle)
 affBacktrackingBruteForce selector strat = strat >>> bbfRecurse
   where
@@ -130,11 +138,12 @@ affBacktrackingBruteForce selector strat = strat >>> bbfRecurse
     bbfRecurse sp@(Stable _) = bbfRecurse $ advanceOrFinish sp
     bbfRecurse (Advancing puzzle) = do
       guess <- guessAttempt
-      if isSolved (snd $ unwrapStateful guess) || isNothing selectedOption
-      then guessAttempt
-      else do
-        nxt <- nextPuzzle dropOptionOnPuzzle
-        pure $ updateBFMeta false <$> nxt
+      case guess, selectedOption of
+        ga@(Solved _), _ -> pure ga
+        ga@(Invalid _ _), Nothing -> pure ga
+        _, _ -> do
+          nxt <- nextPuzzle dropOptionOnPuzzle
+          pure $ updateBFMeta false <$> nxt
       where
         selectedOption :: Maybe (Tuple Option Index)
         selectedOption = selector $ snd puzzle
@@ -144,7 +153,7 @@ affBacktrackingBruteForce selector strat = strat >>> bbfRecurse
           nxt <- nextPuzzle (toggleCell >>> dropOptionOnPuzzle)
           pure $ updateBFMeta true <$> nxt
 
-        nextPuzzle :: _ -> Aff (Stateful Puzzle)
+        nextPuzzle :: (Cell -> Index -> Puzzle) -> Aff (Stateful Puzzle)
         nextPuzzle action = case selectedOption of
           Nothing -> pure $ Invalid (Error "No Solutions" "After exhaustive search, this is a puzzle for which no solutions exist") puzzle
           Just (Tuple option index) -> 

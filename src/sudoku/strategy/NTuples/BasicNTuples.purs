@@ -4,12 +4,12 @@
 -- | The finding algorithms have an N in their name if they search for a specific 
 -- | size of tuple. They do not have an N if they search for tuples of any/all sizes
 -- |
-module Sudoku.Strategy.NTuples where
+module Sudoku.Strategy.BasicNTuples where
 
 import Prelude
 
 import Control.MonadZero (guard)
-import Data.Array (concat, elem, foldl, length, (..), (\\))
+import Data.Array (concat, foldl, length, (..), (\\))
 import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.Int (floor, toNumber)
 import Data.List (List(..), (:))
@@ -17,57 +17,19 @@ import Data.List as L
 import Data.Maybe (Maybe(..))
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), snd)
-import Debug (spy)
 import Error (Error(..))
 import Stateful (Stateful(..), unwrapStateful)
 import Sudoku.Board (Action, Board, batchDropOptions, filterIndices, indexedCells, effective)
-import Sudoku.Cell (Cell, allCells, allOptionsCell, cellsOfSize, countOptions, dropOptions, isSuperset, notDisjoint, toggleCell)
+import Sudoku.Cell (Cell, allCells, allOptionsCell, cellsOfSize, countOptions, dropOptions, isSuperset, notDisjoint)
 import Sudoku.Cell as Cells
-import Sudoku.Group (Group, asIdString, exPeerIndices, groupIndices, groups, toGroupsIntersection)
+import Sudoku.Group (Group, asIdString, exPeerIndices, groupIndices, groups)
 import Sudoku.Index (Index)
 import Sudoku.Option (numOfOptions)
 import Sudoku.Puzzle (Puzzle)
 import Sudoku.Strategy.Common (Strategy, ladderStrats)
-
-data NTupleType = Gen | Naked | Hidden
-
-derive instance eqNTupleType :: Eq NTupleType
-
-type NTuple =
-  { tupleType :: NTupleType
-  , options :: Cell
-  , position :: Array Index
-  }
+import Sudoku.Strategy.NTuple (NTuple, NTupleType(..), toGroupActions)
 
 type FindingTupleAlgorithm = Board -> Group -> Maybe (Array NTuple)
-
--- | Returns the size of an nTuple
-nTupleSize :: NTuple -> Int
-nTupleSize {options} = countOptions options
-
--- | Turn a Tuple into effective actions ( Actions that will alter the
--- | state of the board that is passed in )
--- | If a tuple can be found in multiple groups, the actions returned 
--- | effect all groups
-toActions :: Board -> NTuple -> Array Action
-toActions board {options, position} = do
-  group <- toGroupsIntersection position
-  i <- groupIndices group
-  let action = Tuple i if elem i position
-    then toggleCell options
-    else options
-  guard $ effective board action
-  pure action
-
--- | Turn a Tuple into effective actions ( Actions that will alter the
--- | state of the board that is passed in )
--- | Actions are constrained to a single group
-toGroupActions :: Board -> Group -> NTuple -> Array Action
-toGroupActions board group {tupleType, options, position} = do
-  i <- if tupleType == Naked then groupIndices group \\ position else position
-  let action = Tuple i $ if tupleType == Naked then options else toggleCell options
-  guard $ effective board action
-  pure action
 
 -- | Tuples typically exist only in the context of a group. 
 -- | The list of cells given here encodes the different combinations of possible options this algorithm 
@@ -112,6 +74,7 @@ findTuplesByPred tupleRel illegalRel optionCombinations tupleType board group =
           (subgroup \\ matches)
           (Just $ tuples <> (pure $ 
             { tupleType
+            , group
             , options : currComb 
             , position : matches
             }
@@ -182,7 +145,7 @@ enforceTuples findTuples puzzle = case maybeActions of
       group <- groups
       pure do
         tuples <- findTuples board group
-        pure $ concat $ toGroupActions board group <$> tuples
+        pure $ concat $ toGroupActions board <$> tuples
           
 
 -- | enforceNakedTuples' specialized with a tuple-finding algorithm that finds
@@ -269,8 +232,8 @@ rollingEnforceTuples inputPuzzle = foldl
       maybeActions = do
         nakedTuples <- findSmallNakedTuples board group
         hiddenTuples <- findSmallHiddenTuples board group
-        let nakedActions = concat $ toGroupActions board group <$> nakedTuples
-        let hiddenActions = concat $ toGroupActions board group <$> hiddenTuples
+        let nakedActions = concat $ toGroupActions board <$> nakedTuples
+        let hiddenActions = concat $ toGroupActions board <$> hiddenTuples
         pure $ nakedActions <> hiddenActions 
       
     in case maybeActions of

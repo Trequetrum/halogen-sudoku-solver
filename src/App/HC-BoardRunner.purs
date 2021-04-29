@@ -14,9 +14,10 @@ import Data.Int (toNumber)
 import Data.Int as Ints
 import Data.Map (toUnfoldable)
 import Data.Maybe (Maybe(..))
-import Data.Time.Duration (Milliseconds)
+import Data.Time.Duration (Milliseconds(..))
 import Data.Tuple (Tuple(..), fst, snd)
 import Debug (spy)
+import Effect.Aff (Aff, delay)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Now (now)
 import Error (message, name)
@@ -33,19 +34,20 @@ import Sudoku.Group (groupId, toColumn, toRow)
 import Sudoku.Index (boardIndices)
 import Sudoku.Index.Internal (Index)
 import Sudoku.Option (indexOf, numOfOptions)
-import Sudoku.Puzzle (Puzzle, MetaBoard, fromBoard)
-import Sudoku.Strategy.Bruteforce (affBacktrackingBruteForce, affLadderTupleBruteForce, ladderTupleBruteForce)
-import Sudoku.Strategy.Common (Strategy, advanceOrFinish, onlyAdvancing, stayOrFinish)
-import Sudoku.Strategy.NTuplesWithMeta (affLadderTuples, ladderTuples, rollingEnforceNTuples)
+import Sudoku.Puzzle (MetaBoard, Puzzle, fromBoard)
+import Sudoku.Strategy.Bruteforce (affLadderTupleBruteForce, ladderTupleBruteForce)
+import Sudoku.Strategy.Common (stayOrFinish)
+import Sudoku.Strategy.MetaNTuples (ladderTuples, rollingEnforceNTuples)
 import Type.Prelude (Proxy(..))
-import Utility (inc)
+import Utility (affFn, inc)
 
 type Slots = ( cell :: HCCell.Slot Index )
 
 _cell = Proxy :: Proxy "cell"
 
 type State = 
-  { userPuzzle :: Stateful Puzzle
+  { computing :: Boolean
+  , userPuzzle :: Stateful Puzzle
   , renderPuzzle :: Stateful Puzzle
   , stratTime :: Maybe Milliseconds
   }
@@ -74,7 +76,8 @@ component =
 
 initialState :: State
 initialState = 
-  { userPuzzle : untouchedPuzzle
+  { computing : false
+  , userPuzzle : untouchedPuzzle
   , renderPuzzle : untouchedPuzzle
   , stratTime : Nothing
   }
@@ -91,13 +94,17 @@ setNewPuzzle puzzle state = state
 render :: ∀ m. State -> H.ComponentHTML Action Slots m
 render state = HH.div
   [ HP.classes [ HH.ClassName "ss-solver-layout" ] ]
-  [ HH.div [ HP.classes [HH.ClassName "ss-layout-heading" ] ]
+  [ HH.div 
+    [ HP.id "computingOverlay"
+    , HP.style if state.computing then "display: block" else "display: none"
+    ] []
+  , HH.div [ HP.classes [HH.ClassName "ss-layout-heading" ] ]
     [ HH.h1_ [ HH.text "Sudoku Solver" ]
     , HH.h3_ [ HH.text "A Purescript Exercise Project" ]
     ]
   , HH.div [ HP.classes [HH.ClassName "ss-puzzle-container" ] ]
     [ makeHCBoard $ snd $ unwrapStateful $ state.renderPuzzle
-    , makeHCMetaOutput state.renderPuzzle
+    , makeHCMetaOutput state
     ]
   , hCActionsUi
   , selectAPuzzle
@@ -118,24 +125,18 @@ handleAction (HandleCell index output) = case output of
   (SetTo cell) -> H.modify_ $ updateStateCell const cell index
 
 handleAction Solve = do
-  handleStrategy ladderTupleBruteForce
+  handleStrategy (affFn ladderTupleBruteForce)
   handleAction ConstrainAll
 
 handleAction AsyncSolve = do
-  state <- H.get
-  startTime <- H.liftEffect now
-  strated <- H.liftAff $ affLadderTupleBruteForce $ unwrapStateful state.renderPuzzle
-  let applyStrat = stayOrFinish strated
-  endTime <- H.liftEffect now
-  let duration = spy "AFF Duration" $ diff (toDateTime endTime) (toDateTime startTime)
-  H.modify_ _{ renderPuzzle = applyStrat, stratTime = Just duration }
+  handleStrategy affLadderTupleBruteForce
   handleAction ConstrainAll
 
-handleAction Enforce1Tuples = handleStrategy $ rollingEnforceNTuples 1
-handleAction Enforce2Tuples = handleStrategy $ rollingEnforceNTuples 2
-handleAction Enforce3Tuples = handleStrategy $ rollingEnforceNTuples 3
-handleAction Enforce4Tuples = handleStrategy $ rollingEnforceNTuples 4
-handleAction LadderTuples = handleStrategy $ ladderTuples
+handleAction Enforce1Tuples = handleStrategy (affFn $ rollingEnforceNTuples 1)
+handleAction Enforce2Tuples = handleStrategy (affFn $ rollingEnforceNTuples 2)
+handleAction Enforce3Tuples = handleStrategy (affFn $ rollingEnforceNTuples 3)
+handleAction Enforce4Tuples = handleStrategy (affFn $ rollingEnforceNTuples 4)
+handleAction LadderTuples = handleStrategy (affFn ladderTuples)
 
 ------------------------------------------------------------------------
 -- Action Helpers
@@ -151,15 +152,21 @@ updateStateCell update with index state = state
     updateFn puzzle = map (modifyAtIndex (update with) index) <$> puzzle
 
 handleStrategy :: ∀ output m.  
-  MonadAff m => Strategy -> 
+  MonadAff m => (Puzzle -> Aff (Stateful Puzzle)) -> 
   H.HalogenM State Action Slots output m Unit
 handleStrategy strat = do
+  H.modify_ _{ computing = true }
+  H.liftAff $ delay $ Milliseconds 50.0
   state <- H.get
   startTime <- H.liftEffect now
-  let applyStrat = stayOrFinish $ onlyAdvancing strat $ advanceOrFinish state.renderPuzzle
+  strated <- H.liftAff $ strat $ unwrapStateful state.renderPuzzle
   endTime <- H.liftEffect now
-  let duration = spy "Duration" $ diff (toDateTime endTime) (toDateTime startTime)
-  H.modify_ _{ renderPuzzle = applyStrat, stratTime = Just duration }
+  H.put state
+    { computing = false
+    , renderPuzzle = stayOrFinish strated
+    , stratTime = Just $ diff (toDateTime endTime) (toDateTime startTime) 
+    }
+  
 
 ------------------------------------------------------------------------
 -- Action Buttons
@@ -275,36 +282,42 @@ makeHCBoard board = HH.div
 -- Metaboard info readout
 ------------------------------------------------------------------------
 
-makeHCMetaOutput :: ∀ widget input. Stateful Puzzle -> HH.HTML widget input
-makeHCMetaOutput puzzle = HH.div 
+makeHCMetaOutput :: ∀ widget input. State -> HH.HTML widget input
+makeHCMetaOutput state = HH.div 
   [ HP.classes [ HH.ClassName "ss-metaboard-info-readout" ] ] (
   [ HH.h4_ [ HH.text "Meta-information From Strategies" ] 
   , HH.hr_
   , HH.span_ $
     [ HH.text "Puzzle State: " 
-    , HH.text $ constructorString puzzle
+    , HH.text $ constructorString state.renderPuzzle
     , HH.br_
     ] <> tagAddon
   , HH.hr_
-  ] <> tupleList <> bruteForce)
+  ] <> runTime <> tupleList <> bruteForce)
   where
     meta :: MetaBoard
-    meta = fst $ unwrapStateful puzzle
+    meta = fst $ unwrapStateful state.renderPuzzle
 
     tagAddon :: Array (HH.HTML widget input)
-    tagAddon = case puzzle of 
+    tagAddon = case state.renderPuzzle of 
       (Invalid err _) -> [ HH.text (name err <> ":"), HH.br_, HH.text (message err) ]
       otherwise -> []
+    
+    runTime :: Array (HH.HTML widget input)
+    runTime = case state.stratTime of
+      (Just (Milliseconds ms)) -> [ HH.text ("Runtime: " <> show (Ints.floor ms) <> "ms"), HH.hr_ ]
+      Nothing -> []
 
     tupleList :: Array (HH.HTML widget input)
     tupleList = if length lCount > 0 then
-      [ HH.text "Tuple size: (naked,hidden)" 
+      [ HH.text "Tuple size: (naked,hidden,generated)" 
       , HH.ul_ $ 
-        (\(Tuple count {naked, hidden}) -> HH.li_ 
+        (\(Tuple count {naked, hidden, gen}) -> HH.li_ 
           [ HH.text $ show count <> ": (" <> 
-            show naked <> "," <> show hidden <> ")" 
+            show naked <> "," <> show hidden <> "," <> show gen <> ")" 
           ]
         ) <$> lCount
+      , HH.hr_
       ]
       else []
       where
