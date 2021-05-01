@@ -2,7 +2,7 @@ module Utility where
 
 import Prelude
 
-import Data.Array (filter, find, length, nub, nubEq, unsafeIndex, (!!))
+import Data.Array (deleteBy, filter, find, foldr, length, nub, nubEq, unsafeIndex, (!!))
 import Data.Int (fromString)
 import Data.Maybe (Maybe(..), isNothing, maybe)
 import Data.Time.Duration (Milliseconds(..))
@@ -98,3 +98,6 @@ affFn :: forall a b. (a -> b) -> a -> Aff b
 affFn fn a = do
   delay $ Milliseconds 0.0
   pure $ fn a
+
+differenceBy :: forall a. (a -> a -> Boolean) -> Array a -> Array a -> Array a
+differenceBy eq = foldr (deleteBy eq)

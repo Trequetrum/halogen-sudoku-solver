@@ -12,8 +12,8 @@ import Math (floor, sqrt, (%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful, constructorString, unwrapStateful)
 import Sudoku.Board (Board, mapBoard)
-import Sudoku.Cell (asOptions, hasOption)
-import Sudoku.Cell.Internal (Cell(..))
+import Sudoku.OSet (asOptions, hasOption)
+import Sudoku.OSet.Internal (OSet(..))
 import Sudoku.Group (groupId, toColumn, toRow)
 import Sudoku.Index (Index)
 import Sudoku.Option (allOptions, asString, indexOf, numOfOptions)
@@ -43,8 +43,8 @@ beforeSudokuBorder axis index =
 -- Convert to/from string
 -------------------------------------------------------------------
 
-cellAsBinary :: Cell -> String
-cellAsBinary n = prefill (numOfOptions - String.length asBinary) <> asBinary
+setAsBinary :: OSet -> String
+setAsBinary n = prefill (numOfOptions - String.length asBinary) <> asBinary
   where
     asBinary :: String
     asBinary = toStringAs binary $ coerce n
@@ -53,11 +53,11 @@ cellAsBinary n = prefill (numOfOptions - String.length asBinary) <> asBinary
       | num > 0 = fromCodePointArray $ replicate num $ codePointFromChar '0'
       | otherwise = ""
 
-binaryAsCell :: String -> Cell
-binaryAsCell = fromStringAs binary >>> fromMaybe (-1) >>> Cell
+binaryAsCell :: String -> OSet
+binaryAsCell = fromStringAs binary >>> fromMaybe (-1) >>> OSet
 
-cellAsOptions :: Cell -> String
-cellAsOptions = asOptions >>> map Optn.asString >>> joinWith ""
+setAsOptions :: OSet -> String
+setAsOptions = asOptions >>> map Optn.asString >>> joinWith ""
 
 statefulPuzzleToOptionsString :: Stateful Puzzle -> String
 statefulPuzzleToOptionsString p = constructorString p <> ": \n" <> (puzzleToOptionsString $ unwrapStateful p)
@@ -66,7 +66,7 @@ puzzleToOptionsString :: Puzzle -> String
 puzzleToOptionsString = snd >>> boardToOptionsString
 
 boardToOptionsString :: Board -> String
-boardToOptionsString = mapBoard cellAsOptions >>> joinWith "\" \""
+boardToOptionsString = mapBoard setAsOptions >>> joinWith "\" \""
 
 -------------------------------------------------------------------
 -- Console output for Sudoku Puzzles
@@ -78,15 +78,15 @@ statefulPuzzleToString p = constructorString p <> ": \n" <> (puzzleToString $ un
 puzzleToString :: Puzzle -> String
 puzzleToString = snd >>> boardToString
 
-cellToString :: Cell -> String
-cellToString cell = let 
-  mapOption opt = if hasOption opt cell 
+setToString :: OSet -> String
+setToString set = let 
+  mapOption opt = if hasOption opt set 
     then asString opt 
     else "."
   in joinWith "" $ mapOption <$> allOptions
 
 boardToString :: Board -> String
-boardToString board = display "" $ mapBoard cellToString board
+boardToString board = display "" $ mapBoard setToString board
   where
     display :: String -> (Array String) -> String
     display acc [] = acc

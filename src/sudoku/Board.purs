@@ -60,9 +60,9 @@ import Error (Error(..))
 import Math (sqrt)
 import Partial.Unsafe (unsafePartial)
 import Safe.Coerce (coerce)
-import Sudoku.Cell (allOptionsCell, asTokenString, firstOption, isForced, notDisjoint, toCell)
-import Sudoku.Cell as Cells
-import Sudoku.Cell.Internal (Cell(..))
+import Sudoku.OSet (allOptionsSet, asTokenString, firstOption, isForced, notDisjoint, toOSet)
+import Sudoku.OSet as OSets
+import Sudoku.OSet.Internal (OSet(..))
 import Sudoku.Group (Group, asIdString, groupIndices, groups)
 import Sudoku.Index (boundedIndex, toInt)
 import Sudoku.Index.Internal (Index(..))
@@ -73,12 +73,12 @@ import Utility (allUniqueEq, both, dropMaskPerIndex, justWhen)
 -- Types
 -------------------------------------------------------------------
 
-newtype Board = Board (Array Cell)
+newtype Board = Board (Array OSet)
 
 derive newtype instance eqBoard :: Eq Board
 derive newtype instance showBoard :: Show Board
 
-type Action = Tuple Index Cell
+type Action = Tuple Index OSet
 
 -------------------------------------------------------------------
 -- Invariant
@@ -96,11 +96,11 @@ boardRoot = Ints.floor $ sqrt $ Ints.toNumber boardSize
 
 -- | A board where every cell still has every option as a possibility
 unconstrainedBoard :: Board
-unconstrainedBoard = coerce $ const allOptionsCell <$> 1 .. (boardSize * boardSize)
+unconstrainedBoard = coerce $ const allOptionsSet <$> 1 .. (boardSize * boardSize)
 
--- | Attempt to construct a board for an array of cells
-fromCells :: Array Cell -> Maybe Board
-fromCells cells = if all Cells.isValid cells && length cells == boardSize * boardSize 
+-- | Attempt to construct a board ffrom an array of cells
+fromCells :: Array OSet -> Maybe Board
+fromCells cells = if all OSets.isValid cells && length cells == boardSize * boardSize 
   then Just $ coerce cells
   else Nothing
 
@@ -121,64 +121,64 @@ fromString = split (Pattern "")
   where
     keepVals = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "."]
     fullLength = boardSize * boardSize
-    makeStarterCell :: Int -> Cell
+    makeStarterCell :: Int -> OSet
     makeStarterCell n
-      | n > 0 && n <= boardSize = toCell $ boundedOption (n - 1)
-      | otherwise = allOptionsCell
+      | n > 0 && n <= boardSize = toOSet $ boundedOption (n - 1)
+      | otherwise = allOptionsSet
 
 -------------------------------------------------------------------
 -- Board operations
 -------------------------------------------------------------------
 
--- | Retrieve a cell from the board. This can use unsafeIndex on the board's
+-- | Retrieve a set from the board. This can use unsafeIndex on the board's
 -- | underlying array implemenation since boards (by constrction) always have
 -- | the same shape.
-boardIndex :: Board -> Index -> Cell
+boardIndex :: Board -> Index -> OSet
 boardIndex (Board array) index = unsafePartial (unsafeIndex array (toInt index))
 
 -- | infix operator for boardIndex
 infix 8 boardIndex as !!
 
 -- | Turn a board into an array by applying a function to each cell
-mapBoard :: forall a. (Cell -> a) -> Board -> Array a
+mapBoard :: forall a. (OSet -> a) -> Board -> Array a
 mapBoard fn (Board array) = fn <$> array
 
--- | Returns a new array of indices where all index's corrospoding cell
+-- | Returns a new array of indices where all index's corrospoding sets
 -- | meet some predicate
-filterIndices :: (Cell -> Boolean) -> Board -> Array Index -> Array Index
+filterIndices :: (OSet -> Boolean) -> Board -> Array Index -> Array Index
 filterIndices pred board indices = filter (\i -> pred $ board !! i) indices
 
--- | Find the first Index of a Cell that meets some predicate
-findIndex :: (Cell -> Boolean) -> Board -> Maybe Index
+-- | Find the first Index of a set that meets some predicate
+findIndex :: (OSet -> Boolean) -> Board -> Maybe Index
 findIndex pred (Board array) = boundedIndex <$> Array.findIndex pred array
 
--- | Return the first Index & Cell of a Cell that meets some predicate
-find :: (Cell -> Boolean) -> Board -> Maybe (Tuple Index Cell)
+-- | Return the first Cell (Index & set) in the board that meets some predicate
+find :: (OSet -> Boolean) -> Board -> Maybe (Tuple Index OSet)
 find pred board = case findIndex pred board of
   Nothing -> Nothing
   (Just index) -> Just $ Tuple index $ board !! index
 
 -- | Converts a board into an array of indices and cells
-indexedCells :: Board -> Array (Tuple Index Cell)
+indexedCells :: Board -> Array (Tuple Index OSet)
 indexedCells (Board array) = mapWithIndex (\i c -> Tuple (boundedIndex i) c) array
 
 -------------------------------------------------------------------
 -- Predicates for Boards
 -------------------------------------------------------------------
 
--- | Check if every cell in a board has at least 1 option that is 
+-- | Check if every set in a board has at least 1 option that is 
 -- | still possible
 allCellsValid :: Board -> Boolean
-allCellsValid (Board array) = all Cells.isValid array
+allCellsValid (Board array) = all OSets.isValid array
 
 -- | A version of allCellsValid that returns an error instead of false
 allCellsValid' :: Board -> Maybe Error
-allCellsValid' board = intoError <$> find (not <<< Cells.isValid) board
+allCellsValid' board = intoError <$> find (not <<< OSets.isValid) board
   where
-    intoError (Tuple index cell) = Error "Invalid Cell" ("Board Position " <> show index <> 
-      " contains invalid cell with option(s): (" <> asTokenString cell <> ")")
+    intoError (Tuple index set) = Error "Invalid Cell" ("Board Position " <> show index <> 
+      " contains invalid set with option(s): (" <> asTokenString set <> ")")
 
--- | Check that no group has two singleton Cells with the same option
+-- | Check that no group has two singleton sets with the same option
 noForcedPeerDuplicates :: Board -> Boolean
 noForcedPeerDuplicates board = all allUniqueEq do
   group <- groups
@@ -251,5 +251,5 @@ batchDropOptions :: Array Action -> Board -> Board
 batchDropOptions = coerce dropMaskPerIndex
 
 -- | Modify a specific index of a board
-modifyAtIndex :: (Cell -> Cell) -> Index -> Board -> Board
+modifyAtIndex :: (OSet -> OSet) -> Index -> Board -> Board
 modifyAtIndex fn i (Board array) = coerce $ Array.modifyAtIndices [toInt i] fn array

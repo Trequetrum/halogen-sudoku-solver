@@ -28,7 +28,7 @@ import Halogen.HTML.Properties as HP
 import Math (floor, sqrt, (%))
 import Stateful (Stateful(..), constructorString, unwrapStateful)
 import Sudoku.Board (Board, modifyAtIndex, unconstrainedBoard, (!!))
-import Sudoku.Cell (Cell, dropOptions, setOptions, toCell)
+import Sudoku.OSet (OSet, dropOptions, setOptions, toOSet)
 import Sudoku.Format (beforeSudokuBorder)
 import Sudoku.Group (groupId, toColumn, toRow)
 import Sudoku.Index (boardIndices)
@@ -120,8 +120,8 @@ handleAction (NewPuzzle puzzle) = do
   handleAction ConstrainAll
 
 handleAction (HandleCell index output) = case output of
-  (ToggleOn option) -> H.modify_ $ updateStateCell setOptions (toCell option) index
-  (ToggleOff option) -> H.modify_ $ updateStateCell dropOptions (toCell option) index
+  (ToggleOn option) -> H.modify_ $ updateStateCell setOptions (toOSet option) index
+  (ToggleOff option) -> H.modify_ $ updateStateCell dropOptions (toOSet option) index
   (SetTo cell) -> H.modify_ $ updateStateCell const cell index
 
 handleAction Solve = do
@@ -142,7 +142,7 @@ handleAction LadderTuples = handleStrategy (affFn ladderTuples)
 -- Action Helpers
 ------------------------------------------------------------------------
 
-updateStateCell :: (Cell -> Cell -> Cell) -> Cell -> Index -> State -> State
+updateStateCell :: (OSet -> OSet -> OSet) -> OSet -> Index -> State -> State
 updateStateCell update with index state = state 
   { userPuzzle = updateFn state.userPuzzle
   , renderPuzzle = updateFn state.renderPuzzle
@@ -310,11 +310,11 @@ makeHCMetaOutput state = HH.div
 
     tupleList :: Array (HH.HTML widget input)
     tupleList = if length lCount > 0 then
-      [ HH.text "Tuple size: (naked,hidden,generated)" 
+      [ HH.text "Tuple size: (naked,hidden,both,generated)" 
       , HH.ul_ $ 
-        (\(Tuple count {naked, hidden, gen}) -> HH.li_ 
+        (\(Tuple count {naked, hidden, both, gen}) -> HH.li_ 
           [ HH.text $ show count <> ": (" <> 
-            show naked <> "," <> show hidden <> "," <> show gen <> ")" 
+            show naked <> "," <> show hidden <> "," <> show both <> "," <> show gen <> ")" 
           ]
         ) <$> lCount
       , HH.hr_

@@ -6,8 +6,8 @@ import Data.Either (fromRight)
 import Data.Maybe (fromMaybe)
 import Safe.Coerce (coerce)
 import Sudoku.Board (Board, fromCells, modifyAtIndex, unconstrainedBoard)
-import Sudoku.Cell (dropOptions, setOptions)
-import Sudoku.Cell.Internal (Cell(..))
+import Sudoku.OSet (dropOptions, setOptions)
+import Sudoku.OSet.Internal (OSet(..))
 import Sudoku.Index (boundedIndex)
 import Sudoku.Puzzle (Puzzle, fromBoard)
 import Sudoku.Puzzle as Puzz
@@ -166,10 +166,10 @@ startingBoardSolved = fromMaybe unconstrainedBoard $ fromCells $ coerce
   ]
 
 badCellboard1 :: Board
-badCellboard1 = modifyAtIndex (dropOptions $ Cell 511) (boundedIndex 0) startingBoard
+badCellboard1 = modifyAtIndex (dropOptions $ OSet 511) (boundedIndex 0) startingBoard
 
 badCellboard2 :: Board
-badCellboard2 = modifyAtIndex (setOptions $ Cell 512) (boundedIndex 0) startingBoard
+badCellboard2 = modifyAtIndex (setOptions $ OSet 512) (boundedIndex 0) startingBoard
 
 forcedCellDuplicateBoard :: Board
 forcedCellDuplicateBoard = fromMaybe unconstrainedBoard $ fromCells $ coerce

@@ -8,8 +8,8 @@ import Data.Tuple (Tuple(..))
 import Safe.Coerce (coerce)
 import Sudoku.Board (allCellsValid, batchDropOptions, fromCells, isSolved, isSolvedOrInvalid, modifyAtIndex, noForcedPeerDuplicates, unconstrainedBoard)
 import Sudoku.Board as Brd
-import Sudoku.Cell (dropOptions, isForced)
-import Sudoku.Cell.Internal (Cell(..))
+import Sudoku.OSet (dropOptions, isForced)
+import Sudoku.OSet.Internal (OSet(..))
 import Sudoku.Index (boundedIndex)
 import Test.Basic.Data (badCellboard1, badCellboard2, forcedCellDuplicateBoard, forcedCellDuplicateBoard2, startingBoard, startingBoardSolved, startingBoardString)
 import Test.Spec (Spec, describe, it)
@@ -53,9 +53,9 @@ spec =
       it "allCellsValid True" $ allCellsValid startingBoard `shouldEqual` true
       it "allCellsValid false Low" $ allCellsValid badCellboard1 `shouldEqual` false
       it "allCellsValid false High" $ allCellsValid badCellboard2 `shouldEqual` false
-      it "isForcedCell True" $ isForced (Cell 256) `shouldEqual` true
-      it "isForcedCell False OOB" $ isForced (Cell 512) `shouldEqual` false
-      it "isForcedCell False" $ isForced (Cell 317) `shouldEqual` false
+      it "isForcedCell True" $ isForced (OSet 256) `shouldEqual` true
+      it "isForcedCell False OOB" $ isForced (OSet 512) `shouldEqual` false
+      it "isForcedCell False" $ isForced (OSet 317) `shouldEqual` false
       it "noForcedPeerDuplicates True" $ noForcedPeerDuplicates startingBoard `shouldEqual` true
       it "noForcedPeerDuplicates False" $ noForcedPeerDuplicates forcedCellDuplicateBoard `shouldEqual` false
       it "noForcedPeerDuplicates False 2" $ noForcedPeerDuplicates forcedCellDuplicateBoard2 `shouldEqual` false
@@ -71,8 +71,8 @@ spec =
 
     describe "Update Board State" do
       it "batchDropOptions" $ batchDropOptions 
-        [Tuple (boundedIndex 0) (Cell 511), Tuple (boundedIndex 2) (Cell 503), Tuple (boundedIndex 8) (Cell 503)] 
-          startingBoard `shouldEqual` ( modifyAtIndex (dropOptions $ Cell 511) (boundedIndex 0) $
+        [Tuple (boundedIndex 0) (OSet 511), Tuple (boundedIndex 2) (OSet 503), Tuple (boundedIndex 8) (OSet 503)] 
+          startingBoard `shouldEqual` ( modifyAtIndex (dropOptions $ OSet 511) (boundedIndex 0) $
           fromMaybe unconstrainedBoard $ fromCells $ coerce
           [ 1,511,8,32,64,2,511,511,8
           , 16,511,511,128,511,511,511,256,32

@@ -3,7 +3,7 @@
 -- | That cells are implemented as bitfields is an internal detail and subject
 -- | to change in the future.
 -- | 
-module Sudoku.Cell.Internal where
+module Sudoku.OSet.Internal where
 
 import Prelude
 
@@ -13,18 +13,18 @@ import Data.Int.Bits as Bi
 import Safe.Coerce (coerce)
 import Sudoku.Option (numOfOptions)
 
-newtype Cell = Cell Int
+newtype OSet = OSet Int
 
-derive newtype instance eqCell :: Eq Cell
-derive newtype instance showCell :: Show Cell
+derive newtype instance eqOSet :: Eq OSet
+derive newtype instance showOSet :: Show OSet
 
 allOptionsInt :: Int
 allOptionsInt = (1 `Bi.shl` numOfOptions) - 1
 
-countOptions' :: Cell -> Int
+countOptions' :: OSet -> Int
 countOptions' = counter 0 0
   where
-    counter :: Int -> Int -> Cell -> Int
+    counter :: Int -> Int -> OSet -> Int
     counter iter acc cell
       | iter == numOfOptions = acc
       | otherwise = counter
@@ -44,33 +44,33 @@ countOptionsLookupTable = countOptions' <$> (coerce $ 1 .. allOptionsInt)
 -- (Treat Cells as Bitmaps)
 -------------------------------------------------------------------
 
-bitwiseCellAnd :: Cell -> Cell -> Cell
+bitwiseCellAnd :: OSet -> OSet -> OSet
 bitwiseCellAnd = coerce Bi.and
 
 infixl 10 bitwiseCellAnd as .&.
 
-bitwiseCellOr :: Cell -> Cell -> Cell
+bitwiseCellOr :: OSet -> OSet -> OSet
 bitwiseCellOr = coerce Bi.or
 
 infixl 10 bitwiseCellOr as .|.
 
-bitwiseCellShiftRight :: Cell -> Int -> Cell
+bitwiseCellShiftRight :: OSet -> Int -> OSet
 bitwiseCellShiftRight = coerce Bi.shr
 
 infixl 10 bitwiseCellShiftRight as .>>.
 
-bitwiseCellShiftLeft :: Cell -> Int -> Cell
+bitwiseCellShiftLeft :: OSet -> Int -> OSet
 bitwiseCellShiftLeft = coerce Bi.shl
 
 infixl 10 bitwiseCellShiftLeft as .<<.
 
-bitwiseCellXOr :: Cell -> Cell -> Cell
+bitwiseCellXOr :: OSet -> OSet -> OSet
 bitwiseCellXOr = coerce Bi.xor
 
 infixl 10 bitwiseCellXOr as .^.
 
-bitwiseCellComplement :: Cell -> Cell
+bitwiseCellComplement :: OSet -> OSet
 bitwiseCellComplement = coerce Bi.complement
 
-bNot :: Cell -> Cell
+bNot :: OSet -> OSet
 bNot = bitwiseCellComplement

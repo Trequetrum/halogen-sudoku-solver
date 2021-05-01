@@ -1,7 +1,7 @@
 module App.HC.Cell where
 
 import Prelude 
-import Sudoku.Cell (Cell, countOptions, firstOption, hasOption, toCell, toggleOptions, trustFirstOption)
+import Sudoku.OSet (OSet, countOptions, firstOption, hasOption, toOSet, toggleOptions, trustFirstOption)
 import Sudoku.Option (Option, allOptions, asString, invalidOption)
 
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -16,15 +16,15 @@ type Slot id = H.Slot Query Output id
 data Query a
   = Constrain a
 
-type Input = Cell
+type Input = OSet
 
 data Output 
   = ToggleOn Option 
   | ToggleOff Option 
-  | SetTo Cell
+  | SetTo OSet
 
 data State 
-  = Unconstrained Cell 
+  = Unconstrained OSet 
   | Constrained Option
 
 data Action 
@@ -66,7 +66,7 @@ render (Constrained option) = HH.div_
   ]
   
 makeOption :: ∀ slots m. 
-  Cell -> Option -> H.ComponentHTML Action slots m
+  OSet -> Option -> H.ComponentHTML Action slots m
 makeOption cell option = HH.div
   [ HP.classes [ HH.ClassName optionClass ] 
   , HE.onClick $ clickOption option
@@ -108,14 +108,14 @@ handleAction Unconstrain = do
   state <- H.get
   case state of
     (Constrained stateOption) ->
-      H.put $ Unconstrained $ toCell stateOption
+      H.put $ Unconstrained $ toOSet stateOption
     _ -> handleAction Bounce
 
 handleAction (Toggle option) = do
   state <- H.get
   case state of
     (Unconstrained stateCell) -> do
-      let update = toggleOptions (toCell option) stateCell
+      let update = toggleOptions (toOSet option) stateCell
       let output = if hasOption option stateCell
         then ToggleOff option
         else ToggleOn option
@@ -130,7 +130,7 @@ handleAction (Force option) = do
       if hasOption option stateCell 
       then do
         H.put $ Constrained option
-        H.raise $ SetTo $ toCell option
+        H.raise $ SetTo $ toOSet option
       else if countOptions stateCell == 1
       then do
         H.put $ Constrained $ fromMaybe invalidOption $ firstOption stateCell

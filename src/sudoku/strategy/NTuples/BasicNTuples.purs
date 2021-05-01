@@ -20,8 +20,8 @@ import Data.Tuple (Tuple(..), snd)
 import Error (Error(..))
 import Stateful (Stateful(..), unwrapStateful)
 import Sudoku.Board (Action, Board, batchDropOptions, filterIndices, indexedCells, effective)
-import Sudoku.Cell (Cell, allCells, allOptionsCell, cellsOfSize, countOptions, dropOptions, isSuperset, notDisjoint)
-import Sudoku.Cell as Cells
+import Sudoku.OSet (OSet, allSets, allOptionsSet, setsOfSize, countOptions, dropOptions, isSuperset, notDisjoint)
+import Sudoku.OSet as OSets
 import Sudoku.Group (Group, asIdString, exPeerIndices, groupIndices, groups)
 import Sudoku.Index (Index)
 import Sudoku.Option (numOfOptions)
@@ -49,17 +49,18 @@ type FindingTupleAlgorithm = Board -> Group -> Maybe (Array NTuple)
 -- | illegalRel :: (Int -> Int -> Boolean) - if 
 -- |    illegalRel (countOptions possible cell) (count board cell) == true, then we s short circuit
 -- |    and return Nothing. Indicating we have a board that isn't legal
-findTuplesByPred :: (Cell -> Cell -> Boolean) -> (Int -> Int -> Boolean) -> 
-  List Cell -> NTupleType -> FindingTupleAlgorithm
+-- |
+findTuplesByPred :: (OSet -> OSet -> Boolean) -> (Int -> Int -> Boolean) -> 
+  List OSet -> NTupleType -> FindingTupleAlgorithm
 findTuplesByPred tupleRel illegalRel optionCombinations tupleType board group = 
-  find allOptionsCell optionCombinations (groupIndices group) (Just [])
+  find allOptionsSet optionCombinations (groupIndices group) (Just [])
   where
-    find :: Cell -> List Cell -> Array Index ->  
+    find :: OSet -> List OSet -> Array Index ->  
       Maybe (Array NTuple) -> Maybe (Array NTuple)
     find _ _ _ Nothing = Nothing
     find _ Nil _ jt = jt
     find options (currComb : restCombs) subgroup jt@(Just tuples)
-      | not (Cells.isValid options) = jt
+      | not (OSets.isValid options) = jt
       | countOptions currComb > length subgroup = jt
       | not (options `isSuperset` currComb) = find options restCombs subgroup jt
       | otherwise = let
@@ -86,20 +87,20 @@ findTuplesByPred tupleRel illegalRel optionCombinations tupleType board group =
 -- | findTuplesByPred specialized to find Naked N Tuples
 -- |  * Int: is the size of tuples to look for
 findNakedNTuples :: Int -> FindingTupleAlgorithm
-findNakedNTuples size = findTuplesByPred isSuperset (<) (L.fromFoldable $ cellsOfSize size) Naked
+findNakedNTuples size = findTuplesByPred isSuperset (<) (L.fromFoldable $ setsOfSize size) Naked
 
 -- | findTuplesByPred specialized to find Hidden N Tuples
 -- |  * Int: is the size of tuples to look for
 findHiddenNTuples :: Int -> FindingTupleAlgorithm
-findHiddenNTuples size = findTuplesByPred notDisjoint (>) (L.fromFoldable $ cellsOfSize size) Hidden
+findHiddenNTuples size = findTuplesByPred notDisjoint (>) (L.fromFoldable $ setsOfSize size) Hidden
 
 -- | findTuplesByPred specialized to find Naked Tuples
 findNakedTuples :: FindingTupleAlgorithm
-findNakedTuples = findTuplesByPred isSuperset (<) allCells Naked
+findNakedTuples = findTuplesByPred isSuperset (<) allSets Naked
 
 -- | findTuplesByPred specialized to find Hidden Tuples
 findHiddenTuples :: FindingTupleAlgorithm
-findHiddenTuples = findTuplesByPred notDisjoint (>) allCells Hidden
+findHiddenTuples = findTuplesByPred notDisjoint (>) allSets Hidden
 
 -- | A very basic strategy, if a cell has only one option, then remove that option
 -- | from its peers. This has its own implemention because Naked 1 Tuples exist outside 
@@ -186,8 +187,8 @@ ladderTuples = ladderStrats $ NonEmptyArray
   ]
 
 -- | List of Cells whose size are less than half the number of options. 
-flooredSmallCells :: List Cell
-flooredSmallCells = L.fromFoldable $ 1 .. (floor $ toNumber numOfOptions / 2.0) >>= cellsOfSize
+flooredSmallCells :: List OSet
+flooredSmallCells = L.fromFoldable $ 1 .. (floor $ toNumber numOfOptions / 2.0) >>= setsOfSize
 
 -- | findTuplesByPred specialized to find Naked Tuples
 findSmallNakedTuples :: FindingTupleAlgorithm

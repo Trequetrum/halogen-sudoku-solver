@@ -14,15 +14,16 @@ import Data.Tuple (Tuple(..))
 import Error (Error)
 import Sudoku.Board (Board)
 import Sudoku.Board as Brd
-import Sudoku.Cell (Cell)
+import Sudoku.OSet (OSet)
 import Sudoku.Group (Group)
 import Sudoku.Index (Index)
 
 type MetaBoard = 
-  { tupleState :: Map Group (Map Int (Tuple Cell (Array Index)))
+  { tupleState :: Map Group (Map Int (Tuple OSet (Array Index)))
   , tupleCount :: Map Int 
     { naked :: Int
     , hidden :: Int
+    , both :: Int
     , gen :: Int
     }
   , bruteForce ::
