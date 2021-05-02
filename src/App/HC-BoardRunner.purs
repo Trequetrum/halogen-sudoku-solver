@@ -28,11 +28,11 @@ import Halogen.HTML.Properties as HP
 import Math (floor, sqrt, (%))
 import Stateful (Stateful(..), constructorString, unwrapStateful)
 import Sudoku.Board (Board, modifyAtIndex, unconstrainedBoard, (!!))
-import Sudoku.OSet (OSet, dropOptions, setOptions, toOSet)
-import Sudoku.Format (beforeSudokuBorder)
+import Sudoku.Format (beforeSudokuBorder, boardToForcedString, boardToIntString, boardToString)
 import Sudoku.Group (groupId, toColumn, toRow)
 import Sudoku.Index (boardIndices)
 import Sudoku.Index.Internal (Index)
+import Sudoku.OSet (OSet, dropOptions, setOptions, toOSet)
 import Sudoku.Option (indexOf, numOfOptions)
 import Sudoku.Puzzle (MetaBoard, Puzzle, fromBoard)
 import Sudoku.Strategy.Bruteforce (affLadderTupleBruteForce, ladderTupleBruteForce)
@@ -108,6 +108,7 @@ render state = HH.div
     ]
   , hCActionsUi
   , selectAPuzzle
+  , otherInfo state
   ]
 
 handleAction :: ∀ output m. MonadAff m => Action → 
@@ -235,6 +236,22 @@ selectPuzzleButton i x = HH.button
   ]
 
 ------------------------------------------------------------------------
+-- Place to shove other info and stuff
+------------------------------------------------------------------------
+
+otherInfo :: ∀ widget. State -> HH.HTML widget Action
+otherInfo state = HH.div 
+  [ HP.classes [ HH.ClassName "ss-infos-container" ] ]
+  [ HH.div_ 
+    [ HH.h5_ [ HH.text "Solved Options for each Board Cell" ]
+    , HH.p_ [ HH.text $ boardToForcedString $ snd $ unwrapStateful state.renderPuzzle ]
+    , HH.h5_ [ HH.text "Integer Encoding of the Board State" ]
+    , HH.p_ [ HH.text $ boardToIntString $ snd $ unwrapStateful state.renderPuzzle ]
+    ]
+  ]
+
+
+------------------------------------------------------------------------
 -- Building the board
 ------------------------------------------------------------------------
 
@@ -293,7 +310,7 @@ makeHCMetaOutput state = HH.div
     , HH.br_
     ] <> tagAddon
   , HH.hr_
-  ] <> runTime <> tupleList <> bruteForce)
+  ] <> runTime <> tupleList <> bruteForce <> encodingInfo)
   where
     meta :: MetaBoard
     meta = fst $ unwrapStateful state.renderPuzzle
@@ -337,3 +354,12 @@ makeHCMetaOutput state = HH.div
           (if meta.bruteForce.backtrack > 0 then
             [ HH.li_ [ HH.text $ "Bad: " <> show meta.bruteForce.backtrack ] ]
             else [])
+
+    encodingInfo :: Array (HH.HTML widget input)
+    encodingInfo =
+      [ HH.hr_ 
+      , HH.text "Solved Options for each Board Cell" 
+      , HH.p_ [ HH.text $ boardToForcedString $ snd $ unwrapStateful state.renderPuzzle ]
+      , HH.text "Integer Encoding of the Board State"
+      , HH.p_ [ HH.text $ boardToIntString $ snd $ unwrapStateful state.renderPuzzle ]
+      ]

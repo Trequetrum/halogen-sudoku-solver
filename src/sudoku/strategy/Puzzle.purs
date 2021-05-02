@@ -8,7 +8,7 @@ module Sudoku.Puzzle where
 
 import Prelude
 
-import Data.Either (Either)
+import Data.Either.Nested (type (\/))
 import Data.Map (Map, fromFoldable)
 import Data.Tuple (Tuple(..))
 import Error (Error)
@@ -47,6 +47,6 @@ blankMetaBoard =
 fromBoard :: Board -> Puzzle
 fromBoard board = Tuple blankMetaBoard board
 
-fromString :: String -> Either Error Puzzle
+fromString :: String -> Error \/ Puzzle
 fromString = Brd.fromString >>> map (Tuple blankMetaBoard)
 

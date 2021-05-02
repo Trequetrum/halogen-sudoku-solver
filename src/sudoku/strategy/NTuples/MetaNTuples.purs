@@ -7,25 +7,25 @@ module Sudoku.Strategy.MetaNTuples where
 
 import Prelude
 
-import Data.Array (catMaybes, filter, intersectBy, length, nub, union, (..), (\\))
+import Data.Array (catMaybes, filter, length, nub, union, (..), (\\))
 import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.Bifunctor (bimap)
 import Data.Either (Either(..))
+import Data.Either.Nested (type (\/))
 import Data.Foldable (foldl, foldr)
 import Data.Map (Map, alter, lookup, singleton)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), fst, snd)
-import Error (Error(..))
+import Error (Error)
 import Stateful (Stateful(..), unwrapStateful)
-import Sudoku.Board (Board, batchDropOptions, filterIndices)
-import Sudoku.OSet (OSet, allOptionsSet, countOptions, dropOptions, isSuperset, noOptionsSet, notDisjoint, setOptions, setsOfSize)
+import Sudoku.Board (Board, batchDropOptions)
 import Sudoku.Group (Group, groupIndices, groups)
 import Sudoku.Index (Index)
+import Sudoku.OSet (OSet, allOptionsSet, dropOptions, isSuperset, noOptionsSet, setOptions, setsOfSize)
 import Sudoku.Puzzle (MetaBoard, Puzzle)
 import Sudoku.Strategy.Common (Strategy, ladderStrats)
-import Sudoku.Strategy.NTuple (NTuple, NTupleType(..), nTupleSize, peerExpand, sameTuple, toError, toGroupActions)
-import Utility (differenceBy)
+import Sudoku.Strategy.NTuple (NTuple, NTupleType(..), nTupleSize, peerExpand, toGroupActions, toTupleIn)
 
 -- | Given an array of tuples, this updates a metaboard such that every tuple is counted and their 
 -- | relavant information is stored to be easily retrived during future iterations.
@@ -96,80 +96,26 @@ tupleState size group metaboard =
 -- |
 -- | This accomplishes a lot in one fell swoop. The implementation could probably be tidied up a bit.
 -- |
-findNTuples :: Puzzle -> Int -> Group -> Either Error (Array NTuple)
+findNTuples :: Puzzle -> Int -> Group -> Error \/ Array NTuple
 findNTuples puzzle size group = do
-  n <- onlyNakedTuples
-  h <- onlyHiddenTuples
-  s <- bothTypeTuples
-  pure $ (n <> h <> s) >>= peerExpand (snd puzzle)
+  tuples <- catMaybes <$> sequence ( toTupleIn board group indices <$> setList )
+  pure ( tuples >>= peerExpand board )
   where
     board :: Board
     board = snd puzzle
 
-    startState :: Tuple OSet (Array Index) 
+    startState :: Tuple OSet (Array Index)
     startState = tupleState size group $ fst puzzle
-
-    options :: OSet
-    options = dropOptions (fst startState) allOptionsSet
 
     indices :: Array Index
     indices = groupIndices group \\ snd startState
 
-    combs :: Array OSet
-    combs = filter (isSuperset options) $ setsOfSize size
+    setList :: Array OSet
+    setList = filter setListFilter ( setsOfSize size )
 
-    allNakedTuples :: Either Error (Array NTuple)
-    allNakedTuples = catMaybes <$> (sequence $ checkFor Naked <$> combs)
-
-    allHiddenTuples :: Either Error (Array NTuple)
-    allHiddenTuples = catMaybes <$> (sequence $ checkFor Hidden <$> combs)
-
-    onlyNakedTuples :: Either Error (Array NTuple)
-    onlyNakedTuples = differenceBy sameTuple <$> allNakedTuples <*> allHiddenTuples
-
-    onlyHiddenTuples :: Either Error (Array NTuple)
-    onlyHiddenTuples = differenceBy sameTuple <$> allHiddenTuples <*> allNakedTuples
-
-    bothTypeTuples :: Either Error (Array NTuple)
-    bothTypeTuples = map (\t -> t {tupleType = Both}) <$> (intersectBy sameTuple <$> allNakedTuples <*> allHiddenTuples)
-
-    checkFor :: NTupleType -> OSet -> Either Error (Maybe NTuple)
-    checkFor tupleType = case tupleType of
-      Naked -> checkIf Naked isSuperset (<)
-      Hidden -> checkIf Hidden notDisjoint (>)
-      Both -> \c -> do
-        n <- checkFor Naked c
-        h <- checkFor Hidden c
-        case n, h of
-          (Just nT), (Just hT) -> 
-            if sameTuple nT hT 
-            then Right $ Just $ nT {tupleType = Both} 
-            else Right Nothing
-          _, _ -> Right Nothing
-      Gen -> \_ -> Left $
-        Error "Illegal Operation" 
-        "It is not possible to check for a generated n tuple, did you mean 'Naked'?"
+    setListFilter :: OSet -> Boolean
+    setListFilter = isSuperset $ dropOptions (fst startState) allOptionsSet
     
-    checkIf :: NTupleType -> 
-      (OSet -> OSet -> Boolean) -> 
-      (Int -> Int -> Boolean) -> 
-      OSet -> Either Error (Maybe NTuple)
-    checkIf tupleType tupleRel illegalRel comb = 
-      if isFailure
-      then Left $ toError tuple
-      else if isSuccess
-      then Right (Just tuple)
-      else Right Nothing
-      where
-        matches = filterIndices (tupleRel comb) board indices
-        isSuccess = countOptions comb == length matches
-        isFailure = countOptions comb `illegalRel` length matches
-        tuple = 
-          { tupleType: tupleType
-          , group
-          , options : comb 
-          , position : matches
-          }
 
 -- | This applies tuples found in a group immediately before searching the
 -- | next group. This is more efficient, though a bit harder to reason about
@@ -186,7 +132,7 @@ rollingEnforceNTuples size inputPuzzle = foldl
       puzzle :: Puzzle
       puzzle = unwrapStateful sPuzzle
 
-      eTuples :: Either Error (Array NTuple)
+      eTuples :: Error \/ Array NTuple
       eTuples = findNTuples puzzle size group
 
     in case eTuples of

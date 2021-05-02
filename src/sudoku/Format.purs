@@ -3,20 +3,22 @@ module Sudoku.Format where
 import Prelude
 
 import Data.Array (replicate, splitAt)
+import Data.Array.NonEmpty (length)
 import Data.Int (binary, fromStringAs, toNumber, toStringAs)
 import Data.Maybe (fromMaybe)
 import Data.String (codePointFromChar, fromCodePointArray, joinWith)
-import Data.String as String
-import Data.Tuple (snd)
+import Data.String as Strings
+import Data.Tuple (Tuple(..), snd)
+import Debug (spy)
 import Math (floor, sqrt, (%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful, constructorString, unwrapStateful)
-import Sudoku.Board (Board, mapBoard)
-import Sudoku.OSet (asOptions, hasOption)
-import Sudoku.OSet.Internal (OSet(..))
+import Sudoku.Board (Board, indexedCells, mapBoard)
 import Sudoku.Group (groupId, toColumn, toRow)
-import Sudoku.Index (Index)
-import Sudoku.Option (allOptions, asString, indexOf, numOfOptions)
+import Sudoku.Index (Index, toInt)
+import Sudoku.OSet (asOptions, hasOption, countOptions, firstOption)
+import Sudoku.OSet.Internal (OSet(..))
+import Sudoku.Option (allOptions, asString, indexOf, invalidOption, numOfOptions)
 import Sudoku.Option as Optn
 import Sudoku.Puzzle (Puzzle)
 import Utility (inc)
@@ -44,7 +46,7 @@ beforeSudokuBorder axis index =
 -------------------------------------------------------------------
 
 setAsBinary :: OSet -> String
-setAsBinary n = prefill (numOfOptions - String.length asBinary) <> asBinary
+setAsBinary n = prefill (numOfOptions - Strings.length asBinary) <> asBinary
   where
     asBinary :: String
     asBinary = toStringAs binary $ coerce n
@@ -96,6 +98,37 @@ boardToString board = display "" $ mapBoard setToString board
         (acc <> (joinWith " " split.before) <> "\n")
         (split.after)
 
+setToOptionString :: OSet -> String
+setToOptionString set = case countOptions set of
+  1 -> asString $ fromMaybe invalidOption $ firstOption set
+  _ -> "."
+
+boardToForcedString :: Board -> String
+boardToForcedString board = joinWith "" $ stringify <$> indexedCells board
+  where
+    stringify (Tuple i set) = setToOptionString set <> 
+      ( if (toInt i + 1) `mod` 9 == 0 
+        then " "
+        else ""
+      ) <>
+      ( if (toInt i + 1) `mod` 27 == 0 
+        then "\n"
+        else ""
+      )
+  
+boardToIntString :: Board -> String
+boardToIntString board = "[ " <> (joinWith ", " $ stringify <$> indexedCells board) <> "]"
+  where
+    stringify (Tuple i (OSet int)) = (show int) <>
+      ( if Strings.length (show int) == 1
+        then "  "
+        else if Strings.length (show int) == 2
+        then " "
+        else "") <>
+      ( if (toInt i + 1) `mod` 9 == 0 
+        then "\n"
+        else ""
+      )
 
 
 

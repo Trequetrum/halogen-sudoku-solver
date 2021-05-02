@@ -16,12 +16,13 @@
 .ss-solver-layout {
   display: grid;
   gap: 10px;
-  grid-template-columns: 50px 200px auto 250px;
+  grid-template-columns: 50px 200px auto 50px;
   grid-template-rows: auto;
   grid-template-areas: 
-    ". header  header . "
-    ". puzzle  puzzle . "
-    ". actions select . "
+    " . header  header . "
+    " . puzzle  puzzle . "
+    " . actions select . "
+    " . infos   infos  . ";
 }
 
 .ss-layout-heading {
@@ -42,6 +43,13 @@
   display: flex;
   flex-direction: column;
 }
+
+.ss-infos-container {
+  grid-area: infos;
+  display: flex;
+  justify-content: center;
+}
+
 
 .ss-option-open {
   font-size:16px;
@@ -94,7 +102,7 @@
   grid-area: puzzle;
   align-self: center;
   justify-self: center;
-
+  align-items: flex-start;
   display: flex;
 }
 
@@ -103,7 +111,15 @@
   margin-left: 50px;
 }
 
+.ss-metaboard-info-readout p {
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+
 .ss-board-container {
+  width: min-content;
+  height: min-content;
   display: inline-grid;
   grid-auto-flow: row;
   grid-template-columns: repeat(3, auto) 5px repeat(3, auto) 5px repeat(3, auto);

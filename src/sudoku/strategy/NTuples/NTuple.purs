@@ -6,15 +6,16 @@ module Sudoku.Strategy.NTuple where
 import Prelude
 
 import Control.MonadZero (guard)
-import Data.Array (elem, (\\))
+import Data.Array (elem, length, (\\))
+import Data.Either (Either(..))
+import Data.Either.Nested (type (\/))
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Data.Variant (Variant, inj)
 import Error (Error(..))
-import Sudoku.Board (Action, Board, effective)
-import Sudoku.OSet (OSet, asTokenString, countOptions, toggleOSet)
+import Sudoku.Board (Action, Board, effective, filterIndices)
 import Sudoku.Group (Group, asIdString, groupIndices, toGroupsIntersection)
 import Sudoku.Index (Index)
-import Type.Prelude (Proxy(..))
+import Sudoku.OSet (OSet, asTokenString, countOptions, isSuperset, notDisjoint, toggleOSet)
 
 data NTupleType = Gen | Naked | Hidden | Both
 
@@ -38,11 +39,50 @@ sameTuple
 nTupleSize :: NTuple -> Int
 nTupleSize {options} = countOptions options
 
-toTuple :: Board -> Group -> OSet -> Variant (nothing :: Unit, error :: Error, tuple :: NTuple)
+toTuple :: Board -> Group -> OSet -> Error \/ Maybe NTuple
 toTuple board group = toTupleIn board group $ groupIndices group
 
-toTupleIn :: Board -> Group -> Array Index -> OSet -> Variant (nothing :: Unit, error :: Error, tuple :: NTuple)
-toTupleIn board group indices options = inj (Proxy :: Proxy "nothing") unit
+toTupleIn :: Board -> Group -> Array Index -> OSet -> Error \/ Maybe NTuple
+toTupleIn board group indices options = do
+  nakedTuple <- makeTuple Naked 
+    nakedMatches
+    (compare (==) nakedMatches)
+    (compare (<) nakedMatches)
+  hiddenTuple <- makeTuple Hidden
+    hiddenMatches
+    (compare (==) hiddenMatches)
+    (compare (>) hiddenMatches)
+  pure case nakedTuple, hiddenTuple of 
+    Nothing, t@(Just _)  -> t
+    t@(Just _), Nothing  -> t
+    (Just nT), (Just hT) -> Just nT{ tupleType = Both }
+    Nothing, Nothing     -> Nothing
+  where
+    nakedMatches :: Array Index
+    nakedMatches = filter isSuperset
+    hiddenMatches :: Array Index
+    hiddenMatches = filter notDisjoint
+
+    compare rel matches = countOptions options `rel` length matches
+    filter rel = filterIndices (rel options) board indices
+
+    makeTuple :: NTupleType 
+      -> Array Index 
+      -> Boolean 
+      -> Boolean 
+      -> Error \/ Maybe NTuple
+    makeTuple tupleType matches success fail = 
+      case success, fail of
+        _, true -> Left $ toError tuple
+        true, _ -> Right (Just tuple)
+        _, _    -> Right Nothing 
+      where
+        tuple = 
+          { tupleType
+          , group
+          , options
+          , position : matches
+          }
 
 -- | Blindly create an error based on an NTuple
 toError :: NTuple -> Error
@@ -80,7 +120,10 @@ toActions board {options, position} = do
 
 -- | Turn a Tuple into effective actions ( Actions that will alter the
 -- | state of the board that is passed in )
--- | Actions are constrained to a single group
+-- |
+-- | This is faster than toActions, but does not generate actions for peers
+-- | in related groups
+-- |
 toGroupActions :: Board -> NTuple -> Array Action
 toGroupActions board {tupleType, group, options, position} = case tupleType of 
   Naked -> actions nakedIndices identity
@@ -102,11 +145,12 @@ toGroupActions board {tupleType, group, options, position} = case tupleType of
 peerExpand :: Board -> NTuple -> Array NTuple
 peerExpand board tuple@{tupleType, group, options, position} = do
   eGroup <- toGroupsIntersection position
-  if eGroup == group
-  then pure tuple
-  else pure 
-    { tupleType : Gen
-    , group : eGroup
-    , options
-    , position
-    }
+  pure 
+    if eGroup == group
+    then tuple
+    else 
+      { tupleType : Gen
+      , group : eGroup
+      , options
+      , position
+      }

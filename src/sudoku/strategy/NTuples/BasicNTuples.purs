@@ -31,6 +31,9 @@ import Sudoku.Strategy.NTuple (NTuple, NTupleType(..), toGroupActions)
 
 type FindingTupleAlgorithm = Board -> Group -> Maybe (Array NTuple)
 
+
+
+
 -- | Tuples typically exist only in the context of a group. 
 -- | The list of cells given here encodes the different combinations of possible options this algorithm 
 -- | searches through. It expects cells to be ordered by size (countOptions).

@@ -51,6 +51,7 @@ import Control.MonadZero (guard)
 import Data.Array (all, any, filter, foldl, length, mapMaybe, mapWithIndex, unsafeIndex, (..))
 import Data.Array as Array
 import Data.Either (Either(..), note)
+import Data.Either.Nested (type (\/))
 import Data.Foldable (oneOf)
 import Data.Int as Ints
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -110,7 +111,7 @@ fromCells cells = if all OSets.isValid cells && length cells == boardSize * boar
 -- | indicating a digit, and a 0 or period specifying an empty cell. 
 -- | All other characters are ignored. This includes spaces, newlines, 
 -- | dashes, and bars
-fromString :: String -> Either Error Board
+fromString :: String -> Error \/ Board
 fromString = split (Pattern "") 
   >>> filter (\v -> any (eq v) keepVals) 
   >>> map (Ints.fromString >>> fromMaybe 0)
@@ -199,7 +200,7 @@ noForcedDuplicates board group =
     singletons :: Array Option 
     singletons = mapMaybe (boardIndex board >>> justWhen isForced >>> bindFlipped firstOption) (groupIndices group)
     
-    folder :: Either Error Option -> Option -> Either Error Option
+    folder :: Error \/ Option -> Option -> Error \/ Option
     folder (Right option) nOption = 
       if option /= nOption
       then Right nOption
