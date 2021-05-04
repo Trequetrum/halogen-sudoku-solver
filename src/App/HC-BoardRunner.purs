@@ -16,7 +16,6 @@ import Data.Map (toUnfoldable)
 import Data.Maybe (Maybe(..))
 import Data.Time.Duration (Milliseconds(..))
 import Data.Tuple (Tuple(..), fst, snd)
-import Debug (spy)
 import Effect.Aff (Aff, delay)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Now (now)
@@ -28,7 +27,7 @@ import Halogen.HTML.Properties as HP
 import Math (floor, sqrt, (%))
 import Stateful (Stateful(..), constructorString, unwrapStateful)
 import Sudoku.Board (Board, modifyAtIndex, unconstrainedBoard, (!!))
-import Sudoku.Format (beforeSudokuBorder, boardToForcedString, boardToIntString, boardToString)
+import Sudoku.Format (beforeSudokuBorder, boardToForcedString, boardToIntString)
 import Sudoku.Group (groupId, toColumn, toRow)
 import Sudoku.Index (boardIndices)
 import Sudoku.Index.Internal (Index)
@@ -108,7 +107,7 @@ render state = HH.div
     ]
   , hCActionsUi
   , selectAPuzzle
-  , otherInfo state
+  , otherInfo
   ]
 
 handleAction :: ∀ output m. MonadAff m => Action → 
@@ -176,11 +175,11 @@ handleStrategy strat = do
 hCActionsUi :: ∀ widget. HH.HTML widget Action
 hCActionsUi = HH.div
   [ HP.classes [ HH.ClassName "ss-actions-container" ] ]
-  [ HH.h5_ [ HH.text "Sudoku Actions" ]
+  [ HH.h4_ [ HH.text "Sudoku Actions" ]
   , makeActionButton Blank "Blank Board"
   , makeActionButton Reset "Reset"
   , makeActionButton ConstrainAll "Enlarge Singletons"
-  , HH.h5_ [ HH.text "Sudoku Algorithms" ]
+  , HH.h4_ [ HH.text "Sudoku Algorithms" ]
   , makeActionButton Solve "Solve"
   , makeActionButton AsyncSolve "Async Solve"
   , makeActionButton Enforce1Tuples "1 Tuples"
@@ -208,11 +207,11 @@ makeActionButton action strng = HH.button
 selectAPuzzle :: ∀ widget. HH.HTML widget Action
 selectAPuzzle = HH.div 
   [ HP.classes [ HH.ClassName "ss-select-sudoku" ] ] 
-  [ HH.h5_ [ HH.text "Select An Easy Sudoku" ]
+  [ HH.h4_ [ HH.text "Select An Easy Sudoku" ]
   , HH.div_(mapWithIndex selectPuzzleButton easyPuzzles)
-  , HH.h5_ [ HH.text "Select A Hard Sudoku" ]
+  , HH.h4_ [ HH.text "Select A Hard Sudoku" ]
   , HH.div_(mapWithIndex selectPuzzleButton hardPuzzles)
-  , HH.h5_ [ HH.text "Select A Hardest Sudoku" ]
+  , HH.h4_ [ HH.text "Select A Hardest Sudoku" ]
   , HH.div_ (mapWithIndex selectPuzzleButton hardestPuzzles)
   ]
 
@@ -239,17 +238,36 @@ selectPuzzleButton i x = HH.button
 -- Place to shove other info and stuff
 ------------------------------------------------------------------------
 
-otherInfo :: ∀ widget. State -> HH.HTML widget Action
-otherInfo state = HH.div 
-  [ HP.classes [ HH.ClassName "ss-infos-container" ] ]
-  [ HH.div_ 
-    [ HH.h5_ [ HH.text "Solved Options for each Board Cell" ]
-    , HH.p_ [ HH.text $ boardToForcedString $ snd $ unwrapStateful state.renderPuzzle ]
-    , HH.h5_ [ HH.text "Integer Encoding of the Board State" ]
-    , HH.p_ [ HH.text $ boardToIntString $ snd $ unwrapStateful state.renderPuzzle ]
-    ]
+actionButtonInfo :: Array (Tuple String String)
+actionButtonInfo = 
+  [ Tuple "Click Option" "Toggle whether an option is in the set contained by a given cell"
+  , Tuple "Ctrl+Click Option" "Select an option for a cell or shrink an enlarged singleton"
+  , Tuple "Blank Board" "Create a board where every cell has every option as an element" 
+  , Tuple "Reset" "Undo any changes that any of the strategies have created (Remove their constraints)"
+  , Tuple "Enlarge Singletons" "Ctrl + Click every cell that has only one option"
   ]
 
+stratButtonInfo :: Array (Tuple String String)
+stratButtonInfo = 
+  [ Tuple "Solve" "If possible, let each cell have only 1 option in its set"
+  , Tuple "Async Solve" "If solving requires a guess, put the guess in the JavaScript event queue"
+  , Tuple "# Tuples" "For each group, enforce tuples of the given size using both naked and hidden search"
+  , Tuple "Ladder Strat" "Apply each strategy in turn, only advancing to the next if every previous strategy is stable"
+  ]
+
+infoToLi :: ∀ widget action. Tuple String String -> HH.HTML widget action
+infoToLi (Tuple emph txt) = HH.li_ [ HH.strong_ [ HH.text emph ], HH.text (": " <> txt) ]
+
+otherInfo :: ∀ widget action. HH.HTML widget action
+otherInfo = HH.div 
+  [ HP.classes [ HH.ClassName "ss-infos-container" ] ]
+  [ HH.div_
+    [ HH.h4_ [ HH.text "Sudoku Action Buttons" ]
+    , HH.ul_ (infoToLi <$> actionButtonInfo)
+    , HH.h4_ [ HH.text "Sudoku Algorithm Buttons" ]
+    , HH.ul_ (infoToLi <$> stratButtonInfo)
+    ]
+  ]
 
 ------------------------------------------------------------------------
 -- Building the board
