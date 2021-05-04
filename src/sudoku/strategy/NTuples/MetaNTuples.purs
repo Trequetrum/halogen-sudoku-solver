@@ -122,12 +122,12 @@ findNTuples puzzle size group = do
 -- | what "one iteration" of such a strategy is. 
 rollingEnforceNTuples :: Int -> Strategy
 rollingEnforceNTuples size inputPuzzle = foldl 
-  folder (Stable inputPuzzle) groups
+  enforce (Stable inputPuzzle) groups
   where
-    folder :: Stateful Puzzle -> Group -> Stateful Puzzle
-    folder ip@(Invalid _ sPuzzle) _ = ip
-    folder sop@(Solved _) _ = sop
-    folder sPuzzle group = let
+    enforce :: Stateful Puzzle -> Group -> Stateful Puzzle
+    enforce ip@(Invalid _ sPuzzle) _ = ip
+    enforce sop@(Solved _) _ = sop
+    enforce sPuzzle group = let
 
       puzzle :: Puzzle
       puzzle = unwrapStateful sPuzzle

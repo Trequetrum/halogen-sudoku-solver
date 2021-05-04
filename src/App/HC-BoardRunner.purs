@@ -186,7 +186,7 @@ hCActionsUi = HH.div
   , makeActionButton Enforce2Tuples "2 Tuples"
   , makeActionButton Enforce3Tuples "3 Tuples"
   , makeActionButton Enforce4Tuples "4 Tuples"
-  , makeActionButton LadderTuples "Ladder Tuples"
+  , makeActionButton LadderTuples "Ladder Strat"
   ]
 
 makeActionButton :: ∀ widget. Action -> String -> HH.HTML widget Action
@@ -245,6 +245,7 @@ actionButtonInfo =
   , Tuple "Blank Board" "Create a board where every cell has every option as an element" 
   , Tuple "Reset" "Undo any changes that any of the strategies have created (Remove their constraints)"
   , Tuple "Enlarge Singletons" "Ctrl + Click every cell that has only one option"
+  , Tuple "Select Easy/Hard/Hardest #" "Create a board with one of the prefabricated Sudoku puzzles"
   ]
 
 stratButtonInfo :: Array (Tuple String String)
@@ -266,11 +267,11 @@ relateLinksInfo =
     }
   , { linkText: "# Tuples"
     , href: "https://github.com/Trequetrum/halogen-sudoku-solver/blob/main/NTupleAlgorithm.md"
-    , followup: " algorithm and how it's implemented" 
+    , followup: "algorithm and how it's implemented" 
     }
   , { linkText: "Peter Norvig's"
     , href: "http://norvig.com/sudoku.html"
-    , followup: " write-up for solving Sudoku puzzles" 
+    , followup: "write-up for solving Sudoku puzzles" 
     }
   ]
 

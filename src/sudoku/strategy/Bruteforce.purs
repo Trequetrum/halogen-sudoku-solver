@@ -19,7 +19,6 @@ module Sudoku.Strategy.Bruteforce where
 import Prelude
 
 import Data.Array (findMap, (..))
-import Data.Array.NonEmpty.Internal (NonEmptyArray(..))
 import Data.Bifunctor (lmap)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..), snd)
@@ -27,12 +26,12 @@ import Effect.Aff (Aff)
 import Error (Error(..))
 import Stateful (Stateful(..))
 import Sudoku.Board (Board, batchDropOptions, findIndex, (!!))
-import Sudoku.OSet (OSet, countOptions, toOSet, toggleOSet, trustFirstOption)
 import Sudoku.Index (Index)
+import Sudoku.OSet (OSet, countOptions, toOSet, toggleOSet, trustFirstOption)
 import Sudoku.Option (Option, numOfOptions)
 import Sudoku.Puzzle (Puzzle)
-import Sudoku.Strategy.BasicNTuples (enforceHiddenNTuples, enforceNakedNTuples)
-import Sudoku.Strategy.Common (Strategy, StatefulStrategy, advanceOrFinish, ladderStrats)
+import Sudoku.Strategy.BasicNTuples (enforceNTuples)
+import Sudoku.Strategy.Common (StatefulStrategy, Strategy, advanceOrFinish)
 import Sudoku.Strategy.MetaNTuples (ladderTuples)
 import Utility (affFn)
 
@@ -108,22 +107,17 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
         dropOptionOnPuzzle :: OSet -> Index -> Puzzle
         dropOptionOnPuzzle option index = batchDropOptions [Tuple index option] <$> puzzle
 
-
 -- | This is losely the strategy for solving Sudokus outlined in "Solving Every 
 -- | Sudoku Puzzle" by Peter Norvig.
 norvigBruteForce :: Strategy
 norvigBruteForce = backtrackingBruteForce
-  selectMinOption $ ladderStrats $ NonEmptyArray
-  [ enforceNakedNTuples 1
-  , enforceHiddenNTuples 1
-  ]
+  selectMinOption $ enforceNTuples 1
 
 -- | BacktrackingBruteForce that checks for early Naked Tuples and 
 -- | all Hidden Tuples
 ladderTupleBruteForce :: Strategy
 ladderTupleBruteForce = backtrackingBruteForce
   selectMinOption ladderTuples
-
 
 -- | Brute Force that delays after each guess and delegated future work
 -- | to the event loop. This stops this computation from monopolising the main thread

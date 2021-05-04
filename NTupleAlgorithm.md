@@ -2,43 +2,42 @@
 
 ## Preamble
 
-Talking about Sudoku requires some vocabulary for which we'd better be on the same page (pun intended). 
+Talking about Sudoku requires some vocabulary for which we'd better be on the same page (pun intended).   
 We'll go through some of that here.
 
   * **Board:** A 9x9 (rank-3) Sudoku board is a collection of 81 cells where each cell belongs to exactly 1 row, 1 column, and 1 box.
   * **Rank:** A Sudoku of rank n is an n<sup>2</sup>×n<sup>2</sup> square grid, subdivided into n<sup>2</sup> boxes (each of size n×n). There are n<sup>2</sup> options used to fill out the board.
-  * **Option:** They can be represented by any symbols, though typically these are the numbers used to fill a Sudoku board. On a 9x9 board, they are elements of the set {1,2,3,4,5,6,7,8,9}
+  * **Option:** can be represented by any symbols, though typically options are the numbers used to fill a Sudoku board. On a 9x9 board, they are elements of the set {1,2,3,4,5,6,7,8,9}
   * **Index:** The name for a position on the board. On a 9x9 board, the set of indices are {0..80}
-  * **Cell:** An index and a subset of the options. The set of options for a given cell is an encoding of all the possible options that a position on a board may eventually take. If a cell contains the set {1,4,6,7,8}, that means there are constraints on the board such that any of the other options are invalid. A cell is both a position on a board and a **set** of options. For a 9x9 board, the cardinality (number of possible options) of a cell is between 1 and 9.
+  * **Cell:** An index and a set of options. The set of options for a given cell is an encoding of all the possible options that a position on a board may eventually take. If a cell contains the set {1,4,6,7,8}, that means there are constraints on the board such that any of the other options are invalid. A cell is both a position on a board and a **set** of options. For a 9x9 board, the cardinality (number of possible options) of a cell is between 1 and 9 (no empty set).
   * **Forced/Solved Cell:** A cell whose set of options has a cardinality of 1. 
   * **Group:** Predefined collection of cells (row, column, or box).
   * **Row/Col/Box:** Names for the 3 groups of a typical Sudoku board
-  * **Peers:** cells that share a group
+  * **Peers:** cells (specifically indices) that share a group
 
 ### The One Rule
 
-You have solved a Sudoku puzzle if and only if you
+You have solved a Sudoku puzzle **if and only if** you
 
 > Fill in the whole board using the set of options such that each group contains each option exactly once.
 
 ## Overview
 
-To keep the language and examples from becoming overly verbose, I'm going to assume a rank-3 *(9x9)* Sudoku board throughout this explanation. There's nothing special about a 9x9 Sudoku when it comes to n-tuple constraints and this approach works just as well with any rank Sudoku.
+To keep the language and examples from becoming overly verbose, I'm going to assume a rank-3 *(9x9)* Sudoku board throughout this explanation. There's nothing special about 9x9 Sudoku when it comes to n-tuple constraints and this approach works just as well with any rank Sudoku.
 
-There are two simpler constraints we can derive from the one rule. For now, we'll call these the Naked and Hidden constraints.
+One of the basic approaches to solving a Sudoku puzzle is to search each group (Row, Column, or Box) without regard for the state of the rest of the board. The aim is to split a group into two distinct subgroups such that the two subgroups can safely have no options in common.
 
-Assume α is any of the possible options:
+There are two approaches that allow you to mechanically find such subgroups. We’ll call these the *Naked constraint* and the *Hidden constraint*. 
+  * If we discover these subgroups using the Naked constraint, we'll call the subgroup discovered a Naked Tuple. The other subgroup is implicitly just the rest of the group.
+  * If we discover these subgroups using the Hidden constraint, we'll call the subgroup discovered a Hidden Tuple. The other subgroup is, again, implicitly
 
-  * **Naked Constraint**: If a group has a solved cell with the set of options {α}, then none of its peers can inhabit an intersection with {α}. For example: cell 3 in row 1 has only an 8 as a option, then no other cells in row 1 can have an 8.
-  * **Hidden Constraint**: If a group has only 1 cell that inhabits an intersection with {α}, then that cell must contain a subset the set {α}. For example: cell 3 in row 1 contains the set {1,4,6,7,8}, but no other cell in row 1 contains an 8. Since 1,4,6,&7 cannot be in the subset of {8}, that means cell 3 must contain the set {8}.
-
-It might seems strange that we describe these constraints using sets. After all a cell *inhabits an intersection with {4}* is just asking if 4 is an element in the set of that cell. We formulate it this way because the *Naked* and *Hidden* constraints described here are actually very specific versions of two more general constraints. We call these the *Naked N-Tuple* and *Hidden N-Tuple* constraints.
+I define *Naked constraint* and *Hidden constraint* below (In **How do Tuples constrain a board?**), but it's enlightening to first build some intuition of Naked and Hidden Tuples. Seeing how to find each tuple and understanding that the two are actually duals of one another, further simplifies the definition of these constraints. 
 
 ### Naked N-Tuple described examples
 
-  * **Naked 1-Tuple:** There is a cell in this group that has only 1 option (the option 2). Therefore, all other cells in this group cannot contain a 2
-  * **Hidden 2-Tuple:** There are 2 cells that have only some of 2 options (2s or 3s). Therefore, all other cells in this group cannot contain a 2 or a 3.
-  * **Hidden N-Tuple:** There are N cells that have only some of N options. Therefore, all other cells in this group cannot contain any of these N options
+  * **Naked 1-Tuple:** (Singleton) There is a cell in this group that has only 1 option (the option 2). Therefore, all other cells in this group cannot contain a 2
+  * **Naked 2-Tuple:** (Pair) There are 2 cells that have only some of 2 options (2s or 3s). Therefore, all other cells in this group cannot contain a 2 or a 3.
+  * **Naked N-Tuple:** There are N cells that have only some of N options. Therefore, all other cells in this group cannot contain any of these N options
 
 ### Hidden N-Tuple described examples
 
@@ -70,7 +69,7 @@ You might find a hidden tuple if you:
 
 1) Pick any set of options (They have some cardinality of size **n**) 
 2) Pick any group on the board. 
-3) If the set you picked is not disjoint with exactly n cells in that group, then those **n** cells form a Naked N-Tuple in that group.
+3) If the set you picked is not disjoint with exactly **n** cells in that group, then those **n** cells form a Naked N-Tuple in that group.
 
 You will find every hidden tuple if you do this for 
   * Every combination of options that form a set (of which there are 511)
@@ -85,15 +84,15 @@ There is a much stronger relationship between these two constraints. For any val
 For example: the following `[]`s contain a group. Each cell is just an index paired with a set of options (These indices happen to be from a box in the board.)
 
 ```
-[ (0 {1,2,3,4,5,6,7,8,9})
-, (1 { 2,3,4,5,6,7,8,9})
-, (2 { 2,3,4,5,6,7,8,9})
-, (9 { 2,3,4,5,6,7,8,9})
-, (10 { 2,3,4,5,6,7,8,9})
-, (11 { 2,3,4,5,6,7,8,9})
-, (18 { 2,3,4,5,6,7,8,9})
-, (19 { 2,3,4,5,6,7,8,9})
-, (20 { 2,3,4,5,6,7,8,9})
+[ (0  { 1,2,3,4,5,6,7,8,9 })
+, (1  {   2,3,4,5,6,7,8,9 })
+, (2  {   2,3,4,5,6,7,8,9 })
+, (9  {   2,3,4,5,6,7,8,9 })
+, (10 {   2,3,4,5,6,7,8,9 })
+, (11 {   2,3,4,5,6,7,8,9 })
+, (18 {   2,3,4,5,6,7,8,9 })
+, (19 {   2,3,4,5,6,7,8,9 })
+, (20 {   2,3,4,5,6,7,8,9 })
 ]
 ```
 
@@ -105,7 +104,7 @@ If that's so, what is the corresponding naked 8-tuple? Well:
   * The set {2,3,4,5,6,7,8,9} with cardinality 8 is a superset of exactly 8 cells in this group (The cells with indices 1,2,9,10,11,18,19,20).
   * Therefore: these cells are a Naked 8-Tuple in this group.
 
-*(A moment's reflection with show that...)* This pattern holds for every Hidden and Naked Tuple.
+*(A moment's reflection with show that...)* This pattern holds for every Hidden and Naked Tuple. Hidden Tuples are the dual of naked Tuples. 
 
 ### If every Naked Tuple has a corresponding Hidden Tuple and vice versa, do we need both?
 
@@ -119,11 +118,11 @@ Strictly speaking, no. They represent the same constraints on the board.
 
 ## How do Tuples constrain a board?
 
-An N-Tuple is a set of options with cardinality **n**, paired with a list of indices of length **n**. 
-Each N-Tuple constrains the board in 2 ways: 
+An N-Tuple is a set of options with cardinality **n**, paired with a list of indices of length **n**.   
+Each N-Tuple constrains the board in 2 ways:  
 
-  1) Constrain the cells at each index to be a subset of the set of options.  
-  2) Constrain the peers of this n-Tuple to be disjoint with the set of options.
+  1) **Naked  Constraint:** Constrain the cells at each index to be a subset of the set of options.  
+  2) **Hidden Constraint:** Constrain the peers of this n-Tuple to be disjoint with the set of options.
 
 In either case, you remove the minimal number of elements possible such that this constraint is met.
 
