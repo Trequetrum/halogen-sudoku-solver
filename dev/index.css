@@ -101,7 +101,7 @@
   grid-area: puzzle;
   align-self: center;
   justify-self: center;
-  align-items: flex-start;
+  align-items: center;
   display: flex;
 }
 

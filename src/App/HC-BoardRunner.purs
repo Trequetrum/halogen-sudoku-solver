@@ -258,6 +258,28 @@ stratButtonInfo =
 infoToLi :: ∀ widget action. Tuple String String -> HH.HTML widget action
 infoToLi (Tuple emph txt) = HH.li_ [ HH.strong_ [ HH.text emph ], HH.text (": " <> txt) ]
 
+relateLinksInfo :: Array {linkText :: String, href :: String, followup :: String}
+relateLinksInfo =
+  [ { linkText: "Github Repository"
+    , href: "https://github.com/Trequetrum/halogen-sudoku-solver"
+    , followup: "that builds this page" 
+    }
+  , { linkText: "# Tuples"
+    , href: "https://github.com/Trequetrum/halogen-sudoku-solver/blob/main/NTupleAlgorithm.md"
+    , followup: " algorithm and how it's implemented" 
+    }
+  , { linkText: "Peter Norvig's"
+    , href: "http://norvig.com/sudoku.html"
+    , followup: " write-up for solving Sudoku puzzles" 
+    }
+  ]
+
+linksToLi :: ∀ widget action. {linkText :: String, href :: String, followup :: String} -> HH.HTML widget action
+linksToLi { linkText, href, followup } = HH.li_ 
+  [ HH.a [ HP.href href ] [ HH.text linkText ]
+  , HH.text ( " " <> followup )
+  ]
+
 otherInfo :: ∀ widget action. HH.HTML widget action
 otherInfo = HH.div 
   [ HP.classes [ HH.ClassName "ss-infos-container" ] ]
@@ -266,6 +288,8 @@ otherInfo = HH.div
     , HH.ul_ (infoToLi <$> actionButtonInfo)
     , HH.h4_ [ HH.text "Sudoku Algorithm Buttons" ]
     , HH.ul_ (infoToLi <$> stratButtonInfo)
+    , HH.h4_ [ HH.text "Related Links" ]
+    , HH.ul_ (linksToLi <$> relateLinksInfo)
     ]
   ]
 
@@ -327,7 +351,6 @@ makeHCMetaOutput state = HH.div
     , HH.text $ constructorString state.renderPuzzle
     , HH.br_
     ] <> tagAddon
-  , HH.hr_
   ] <> runTime <> tupleList <> bruteForce <> encodingInfo)
   where
     meta :: MetaBoard
@@ -340,7 +363,7 @@ makeHCMetaOutput state = HH.div
     
     runTime :: Array (HH.HTML widget input)
     runTime = case state.stratTime of
-      (Just (Milliseconds ms)) -> [ HH.text ("Runtime: " <> show (Ints.floor ms) <> "ms"), HH.hr_ ]
+      (Just (Milliseconds ms)) -> [ HH.hr_, HH.text ("Runtime: " <> show (Ints.floor ms) <> "ms"), HH.br_ ]
       Nothing -> []
 
     tupleList :: Array (HH.HTML widget input)
@@ -352,7 +375,6 @@ makeHCMetaOutput state = HH.div
             show naked <> "," <> show hidden <> "," <> show both <> "," <> show gen <> ")" 
           ]
         ) <$> lCount
-      , HH.hr_
       ]
       else []
       where

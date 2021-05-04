@@ -21,8 +21,7 @@ The current UI is largely self-explanitory. It's worth mentioning that ctrl+clic
 
 ## Building for Github Pages
 
-./build-gh-pages is a bash script that deploys this halogen-based SPA into **/docs** so that it plays nice with Github pages.
-
+./build-gh-pages is a bash script that deploys this halogen-based SPA into **/docs** and formats relative links so that they play nice with Github pages.
 
 ------
 
