@@ -31,8 +31,9 @@ import Sudoku.OSet (OSet, countOptions, toOSet, toggleOSet, trustFirstOption)
 import Sudoku.Option (Option, numOfOptions)
 import Sudoku.Puzzle (Puzzle)
 import Sudoku.Strategy.BasicNTuples (enforceNTuples)
-import Sudoku.Strategy.Common (StatefulStrategy, Strategy, advanceOrFinish)
-import Sudoku.Strategy.MetaNTuples (ladderTuples)
+import Sudoku.Strategy.Common (StatefulStrategy, Strategy, advanceOrFinish, ladderStrats)
+import Sudoku.Strategy.MetaNTuples (ladderOrder, ladderTuples, rollingEnforceNTuples)
+import Sudoku.Strategy.Pointing (rollingEnforcePointing)
 import Utility (affFn)
 
 type Selector = Board -> Maybe (Tuple Option Index)
@@ -48,12 +49,11 @@ selectFirst board = Tuple <$> option <*> maybeI
       i <- maybeI
       pure $ board !! i # trustFirstOption
 
--- | A 
--- Variable Ordering: A common heuristic called minimum remaining values, 
---    which means that we choose the (or one of the) cells with the 
---    minimum number of possible options. This increases our odds of 
---    guessing correctly
--- Value Ordering: Pick the first option
+-- | A Variable Ordering: A common heuristic called minimum remaining values, 
+-- | which means that we choose the (or one of the) cells with the 
+-- | minimum number of possible options. This increases our odds of 
+-- | guessing correctly
+-- | Value Ordering: Pick the first option
 selectMinOption :: Selector
 selectMinOption board = Tuple <$> option <*> maybeI
   where
@@ -87,10 +87,11 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
     bbfRecurse sop@(Solved _) = sop
     bbfRecurse ip@(Invalid _ _) = ip
     bbfRecurse sp@(Stable _) = bbfRecurse $ advanceOrFinish sp
-    bbfRecurse (Advancing puzzle) = case guessAttempt, selectedOption of
-      ga@(Solved _), _ -> ga
-      ga@(Invalid _ _), Nothing -> ga
-      _, _ -> updateBFMeta false <$> nextPuzzle dropOptionOnPuzzle
+    bbfRecurse (Advancing puzzle) = 
+      case guessAttempt, selectedOption of
+        ga@(Solved _), _ -> ga
+        ga@(Invalid _ _), Nothing -> ga
+        _, _ -> updateBFMeta false <$> nextPuzzle dropOptionOnPuzzle
       where
         selectedOption :: Maybe (Tuple Option Index)
         selectedOption = selector $ snd puzzle
@@ -100,7 +101,10 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
 
         nextPuzzle :: (OSet -> Index -> Puzzle) -> Stateful Puzzle
         nextPuzzle action = case selectedOption of
-          Nothing -> Invalid (Error "No Solutions" "After exhaustive search, this is a puzzle for which no solutions exist") puzzle
+          Nothing -> Invalid 
+            ( Error "No Solutions" 
+              "After exhaustive search, this is a puzzle for which no solutions exist"
+            ) puzzle
           Just (Tuple option index) -> 
             bbfRecurse $ advanceOrFinish $ strat $ action (toOSet option) index
 
@@ -111,13 +115,18 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
 -- | Sudoku Puzzle" by Peter Norvig.
 norvigBruteForce :: Strategy
 norvigBruteForce = backtrackingBruteForce
-  selectMinOption $ enforceNTuples 1
+  selectMinOption (rollingEnforceNTuples 1)
 
--- | BacktrackingBruteForce that checks for early Naked Tuples and 
--- | all Hidden Tuples
-ladderTupleBruteForce :: Strategy
-ladderTupleBruteForce = backtrackingBruteForce
-  selectMinOption ladderTuples
+-- | Ladder various strategies together into a single strategy.
+-- | Currently uses all the tupleStrats as well as the pointing strat
+ladderAllStrats :: Strategy
+ladderAllStrats = ladderStrats (ladderOrder <> pure rollingEnforcePointing)
+
+-- | BacktrackingBruteForce that narrows the search space with all available strategies
+-- | between guesses. 
+ladderBruteForce :: Strategy
+ladderBruteForce = backtrackingBruteForce
+  selectMinOption ladderAllStrats
 
 -- | Brute Force that delays after each guess and delegated future work
 -- | to the event loop. This stops this computation from monopolising the main thread
@@ -148,12 +157,16 @@ affBacktrackingBruteForce selector strat = strat >>> bbfRecurse
 
         nextPuzzle :: (OSet -> Index -> Puzzle) -> Aff (Stateful Puzzle)
         nextPuzzle action = case selectedOption of
-          Nothing -> pure $ Invalid (Error "No Solutions" "After exhaustive search, this is a puzzle for which no solutions exist") puzzle
+          Nothing -> pure $ Invalid 
+            ( Error "No Solutions" 
+              "After exhaustive search, this is a puzzle for which no solutions exist"
+            ) puzzle
           Just (Tuple option index) -> 
             (affFn strat) (action (toOSet option) index) >>= bbfRecurse
 
+        dropOptionOnPuzzle :: OSet -> Index -> Puzzle
         dropOptionOnPuzzle option index = batchDropOptions [Tuple index option] <$> puzzle
 
-affLadderTupleBruteForce :: Puzzle -> Aff (Stateful Puzzle)
-affLadderTupleBruteForce = affBacktrackingBruteForce
-  selectMinOption ladderTuples
+affLadderBruteForce :: Puzzle -> Aff (Stateful Puzzle)
+affLadderBruteForce = affBacktrackingBruteForce
+  selectMinOption ladderAllStrats

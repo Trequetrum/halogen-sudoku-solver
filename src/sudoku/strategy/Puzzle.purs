@@ -26,6 +26,7 @@ type MetaBoard =
     , both :: Int
     , gen :: Int
     }
+  , pointing :: Int
   , bruteForce ::
     { guessed :: Int
     , backtrack :: Int
@@ -38,6 +39,7 @@ blankMetaBoard :: MetaBoard
 blankMetaBoard = 
   { tupleState: fromFoldable []
   , tupleCount: fromFoldable []
+  , pointing: 0
   , bruteForce: 
     { guessed: 0
     , backtrack: 0

@@ -13,8 +13,11 @@
 -- | * Peers: cells that share a group
 -- |
 module Sudoku.Board
-  ( -- Types
-    Board
+  ( -- Invariants
+    boardSize 
+  , boardRoot
+    -- Types
+  , Board
   , Action
     -- Board Constrctors
   , unconstrainedBoard

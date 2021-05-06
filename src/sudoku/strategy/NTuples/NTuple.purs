@@ -28,6 +28,9 @@ type NTuple =
   , position :: Array Index
   }
 
+-- | This returns true if two tuples represent the same set of options
+-- | at the same board position. It ignores how this tuples was found
+-- | or generated (tupleType and group)
 sameTuple :: NTuple -> NTuple -> Boolean
 sameTuple 
   {options: lOptions, position: lPosition}
@@ -39,9 +42,11 @@ sameTuple
 nTupleSize :: NTuple -> Int
 nTupleSize {options} = countOptions options
 
+-- | Check if a specific set of options is a tuple within a group.
 toTuple :: Board -> Group -> OSet -> Error \/ Maybe NTuple
 toTuple board group = toTupleIn board group $ groupIndices group
 
+-- | Check if a specific set of options is a tuple within some subgroup of a group.
 toTupleIn :: Board -> Group -> Array Index -> OSet -> Error \/ Maybe NTuple
 toTupleIn board group indices options = do
   nakedTuple <- makeTuple Naked 
@@ -86,9 +91,9 @@ toTupleIn board group indices options = do
 
 -- | Blindly create an error based on an NTuple
 toError :: NTuple -> Error
-toError {tupleType, group, options} = Error ("Impossible " <> 
+toError {tupleType, group, options, position} = Error ("Impossible " <> 
   name <> " Tuple") ("Option(s) [" <> asTokenString options <> 
-  "] are " <> relationShip <> show (countOptions options) <> " cell(s) in " <> asIdString group)
+  "] are " <> relationShip <> show (length position) <> " cell(s) in " <> asIdString group)
   where 
     name :: String
     name = case tupleType of

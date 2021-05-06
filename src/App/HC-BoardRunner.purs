@@ -8,7 +8,6 @@ import App.Parseboards (easyPuzzles, hardPuzzles, hardestPuzzles)
 import Data.Array (length, (..))
 import Data.DateTime (diff)
 import Data.DateTime.Instant (toDateTime)
-import Data.Foldable (for_)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (toNumber)
 import Data.Int as Ints
@@ -34,9 +33,10 @@ import Sudoku.Index.Internal (Index)
 import Sudoku.OSet (OSet, dropOptions, setOptions, toOSet)
 import Sudoku.Option (indexOf, numOfOptions)
 import Sudoku.Puzzle (MetaBoard, Puzzle, fromBoard)
-import Sudoku.Strategy.Bruteforce (affLadderTupleBruteForce, ladderTupleBruteForce)
+import Sudoku.Strategy.Bruteforce (affLadderBruteForce, ladderAllStrats, ladderBruteForce, norvigBruteForce)
 import Sudoku.Strategy.Common (stayOrFinish)
-import Sudoku.Strategy.MetaNTuples (ladderTuples, rollingEnforceNTuples)
+import Sudoku.Strategy.MetaNTuples (rollingEnforceNTuples)
+import Sudoku.Strategy.Pointing (rollingEnforcePointing)
 import Type.Prelude (Proxy(..))
 import Utility (affFn, inc)
 
@@ -46,6 +46,7 @@ _cell = Proxy :: Proxy "cell"
 
 type State = 
   { computing :: Boolean
+  , puzzleName :: String
   , userPuzzle :: Stateful Puzzle
   , renderPuzzle :: Stateful Puzzle
   , stratTime :: Maybe Milliseconds
@@ -54,16 +55,17 @@ type State =
 data Action
   = Blank
   | Reset
-  | ConstrainAll
   | HandleCell Index HCCell.Output
-  | NewPuzzle Puzzle
+  | NewPuzzle String Puzzle
   | Solve
   | AsyncSolve
+  | NorvigSolve
+  | LadderStrats
   | Enforce1Tuples
   | Enforce2Tuples
   | Enforce3Tuples
   | Enforce4Tuples
-  | LadderTuples
+  | EnforcePointing
 
 component :: ∀ query input output m. MonadAff m => H.Component query input output m
 component =
@@ -76,6 +78,7 @@ component =
 initialState :: State
 initialState = 
   { computing : false
+  , puzzleName : "BLANK BOARD"
   , userPuzzle : untouchedPuzzle
   , renderPuzzle : untouchedPuzzle
   , stratTime : Nothing
@@ -84,9 +87,10 @@ initialState =
     untouchedPuzzle :: Stateful Puzzle
     untouchedPuzzle = Stable $ fromBoard unconstrainedBoard
 
-setNewPuzzle :: Puzzle -> State -> State
-setNewPuzzle puzzle state = state 
-  { userPuzzle = Stable puzzle
+setNewPuzzle :: String -> Puzzle -> State -> State
+setNewPuzzle label puzzle state = state 
+  { puzzleName = label
+  , userPuzzle = Stable puzzle
   , renderPuzzle = Stable puzzle
   }
 
@@ -102,7 +106,10 @@ render state = HH.div
     , HH.h3_ [ HH.text "A Purescript Exercise Project" ]
     ]
   , HH.div [ HP.classes [HH.ClassName "ss-puzzle-container" ] ]
-    [ makeHCBoard $ snd $ unwrapStateful $ state.renderPuzzle
+    [ HH.div [ HP.classes [HH.ClassName "ss-board-container" ] ]
+      [ HH.h4_ [ HH.text state.puzzleName ]
+      , makeHCBoard $ snd $ unwrapStateful $ state.renderPuzzle
+      ]
     , makeHCMetaOutput state
     ]
   , hCActionsUi
@@ -114,29 +121,23 @@ handleAction :: ∀ output m. MonadAff m => Action →
   H.HalogenM State Action Slots output m Unit
 handleAction Blank = H.modify_ \_ -> initialState
 handleAction Reset = H.modify_ \st -> st { renderPuzzle = st.userPuzzle }
-handleAction ConstrainAll = for_ boardIndices \i -> H.tell _cell i HCCell.Constrain
-handleAction (NewPuzzle puzzle) = do 
-  H.modify_ \st -> setNewPuzzle puzzle st
-  handleAction ConstrainAll
+handleAction (NewPuzzle label puzzle) = H.modify_ \st -> setNewPuzzle label puzzle st
 
 handleAction (HandleCell index output) = case output of
   (ToggleOn option) -> H.modify_ $ updateStateCell setOptions (toOSet option) index
   (ToggleOff option) -> H.modify_ $ updateStateCell dropOptions (toOSet option) index
   (SetTo cell) -> H.modify_ $ updateStateCell const cell index
 
-handleAction Solve = do
-  handleStrategy (affFn ladderTupleBruteForce)
-  handleAction ConstrainAll
-
-handleAction AsyncSolve = do
-  handleStrategy affLadderTupleBruteForce
-  handleAction ConstrainAll
-
+handleAction Solve = handleStrategy (affFn ladderBruteForce)
+handleAction AsyncSolve = handleStrategy affLadderBruteForce
+handleAction NorvigSolve = handleStrategy (affFn norvigBruteForce)
+handleAction LadderStrats = handleStrategy (affFn ladderAllStrats)
 handleAction Enforce1Tuples = handleStrategy (affFn $ rollingEnforceNTuples 1)
 handleAction Enforce2Tuples = handleStrategy (affFn $ rollingEnforceNTuples 2)
 handleAction Enforce3Tuples = handleStrategy (affFn $ rollingEnforceNTuples 3)
 handleAction Enforce4Tuples = handleStrategy (affFn $ rollingEnforceNTuples 4)
-handleAction LadderTuples = handleStrategy (affFn ladderTuples)
+handleAction EnforcePointing = handleStrategy (affFn $ rollingEnforcePointing)
+
 
 ------------------------------------------------------------------------
 -- Action Helpers
@@ -144,7 +145,11 @@ handleAction LadderTuples = handleStrategy (affFn ladderTuples)
 
 updateStateCell :: (OSet -> OSet -> OSet) -> OSet -> Index -> State -> State
 updateStateCell update with index state = state 
-  { userPuzzle = updateFn state.userPuzzle
+  { puzzleName = 
+      if state.puzzleName == "BLANK BOARD"
+      then "Custom Board"
+      else state.puzzleName
+  , userPuzzle = updateFn state.userPuzzle
   , renderPuzzle = updateFn state.renderPuzzle
   }
   where
@@ -166,7 +171,6 @@ handleStrategy strat = do
     , renderPuzzle = stayOrFinish strated
     , stratTime = Just $ diff (toDateTime endTime) (toDateTime startTime) 
     }
-  
 
 ------------------------------------------------------------------------
 -- Action Buttons
@@ -178,15 +182,20 @@ hCActionsUi = HH.div
   [ HH.h4_ [ HH.text "Sudoku Actions" ]
   , makeActionButton Blank "Blank Board"
   , makeActionButton Reset "Reset"
-  , makeActionButton ConstrainAll "Enlarge Singletons"
   , HH.h4_ [ HH.text "Sudoku Algorithms" ]
   , makeActionButton Solve "Solve"
   , makeActionButton AsyncSolve "Async Solve"
-  , makeActionButton Enforce1Tuples "1 Tuples"
-  , makeActionButton Enforce2Tuples "2 Tuples"
-  , makeActionButton Enforce3Tuples "3 Tuples"
-  , makeActionButton Enforce4Tuples "4 Tuples"
-  , makeActionButton LadderTuples "Ladder Strat"
+  , makeActionButton NorvigSolve "Norvig's Strat"
+  , makeActionButton LadderStrats "Ladder Strat"
+  , HH.div [] 
+    [ HH.p_ [ HH.text "# Tuples:" ]
+    , makeActionButton Enforce1Tuples "1"
+    , makeActionButton Enforce2Tuples "2"
+    , HH.br_
+    , makeActionButton Enforce3Tuples "3"
+    , makeActionButton Enforce4Tuples "4" 
+    ]
+  , makeActionButton EnforcePointing "Pointing"
   ]
 
 makeActionButton :: ∀ widget. Action -> String -> HH.HTML widget Action
@@ -208,11 +217,11 @@ selectAPuzzle :: ∀ widget. HH.HTML widget Action
 selectAPuzzle = HH.div 
   [ HP.classes [ HH.ClassName "ss-select-sudoku" ] ] 
   [ HH.h4_ [ HH.text "Select An Easy Sudoku" ]
-  , HH.div_(mapWithIndex selectPuzzleButton easyPuzzles)
+  , HH.div_(mapWithIndex (selectPuzzleButton "Easy Sudoku") easyPuzzles)
   , HH.h4_ [ HH.text "Select A Hard Sudoku" ]
-  , HH.div_(mapWithIndex selectPuzzleButton hardPuzzles)
+  , HH.div_(mapWithIndex (selectPuzzleButton "Hard Sudoku") hardPuzzles)
   , HH.h4_ [ HH.text "Select A Hardest Sudoku" ]
-  , HH.div_ (mapWithIndex selectPuzzleButton hardestPuzzles)
+  , HH.div_ (mapWithIndex (selectPuzzleButton "Hardest Sudoku") hardestPuzzles)
   ]
 
 -- | 
@@ -220,9 +229,9 @@ selectAPuzzle = HH.div
 -- |   <span class="mdc-button__label">Outlined Button</span>
 -- | </button>
 -- | 
-selectPuzzleButton :: ∀ widget. Int -> Puzzle -> HH.HTML widget Action
-selectPuzzleButton i x = HH.button
-  [ HE.onClick \_ -> NewPuzzle x
+selectPuzzleButton :: ∀ widget. String -> Int -> Puzzle -> HH.HTML widget Action
+selectPuzzleButton boardPrefixName i x = HH.button
+  [ HE.onClick \_ -> NewPuzzle (boardPrefixName <> " # " <> buttonLabel) x
   , HP.classes 
     [ HH.ClassName "mdc-button"
     , HH.ClassName "mdc-button--outlined"
@@ -231,8 +240,11 @@ selectPuzzleButton i x = HH.button
   ]
   [ HH.span 
     [ HP.classes [ HH.ClassName "mdc-button__label" ] ]
-    [ HH.text $ show $ i + 1 ]
+    [ HH.text buttonLabel ]
   ]
+  where
+    buttonLabel :: String
+    buttonLabel = show $ i + 1
 
 ------------------------------------------------------------------------
 -- Place to shove other info and stuff
@@ -244,7 +256,6 @@ actionButtonInfo =
   , Tuple "Ctrl+Click Option" "Select an option for a cell or shrink an enlarged singleton"
   , Tuple "Blank Board" "Create a board where every cell has every option as an element" 
   , Tuple "Reset" "Undo any changes that any of the strategies have created (Remove their constraints)"
-  , Tuple "Enlarge Singletons" "Ctrl + Click every cell that has only one option"
   , Tuple "Select Easy/Hard/Hardest #" "Create a board with one of the prefabricated Sudoku puzzles"
   ]
 
@@ -252,8 +263,9 @@ stratButtonInfo :: Array (Tuple String String)
 stratButtonInfo = 
   [ Tuple "Solve" "If possible, let each cell have only 1 option in its set"
   , Tuple "Async Solve" "If solving requires a guess, put the guess in the JavaScript event queue"
-  , Tuple "# Tuples" "For each group, enforce tuples of the given size using both naked and hidden search"
+  , Tuple "Norvig's Strat" "Strategy losely based on Peter Norvig's write-up (Link Below)"
   , Tuple "Ladder Strat" "Apply each strategy in turn, only advancing to the next if every previous strategy is stable"
+  , Tuple "# Tuples" "For each group, enforce tuples of the given size using both naked and hidden search"
   ]
 
 infoToLi :: ∀ widget action. Tuple String String -> HH.HTML widget action
@@ -306,7 +318,7 @@ makeHCCell board i = HH.slot _cell i HCCell.component (board !! i) $ HandleCell 
 
 makeHCBoard :: ∀ m. Board -> H.ComponentHTML Action Slots m
 makeHCBoard board = HH.div
-  [ HP.classes [ HH.ClassName "ss-board-container" ] ]
+  [ HP.classes [ HH.ClassName "ss-sudoku-board" ] ]
   $ boardIndices >>= makeLayoutCells
   where
     makeLayoutCells :: Index -> Array (H.ComponentHTML Action Slots m)
@@ -344,15 +356,21 @@ makeHCBoard board = HH.div
 
 makeHCMetaOutput :: ∀ widget input. State -> HH.HTML widget input
 makeHCMetaOutput state = HH.div 
-  [ HP.classes [ HH.ClassName "ss-metaboard-info-readout" ] ] (
-  [ HH.h4_ [ HH.text "Meta-information From Strategies" ] 
-  , HH.hr_
-  , HH.span_ $
-    [ HH.text "Puzzle State: " 
-    , HH.text $ constructorString state.renderPuzzle
-    , HH.br_
-    ] <> tagAddon
-  ] <> runTime <> tupleList <> bruteForce <> encodingInfo)
+  [ HP.classes [ HH.ClassName "ss-metaboard-info-readout" ] ] 
+  ( [ HH.h4_ [ HH.text "Meta-information From Strategies" ] 
+    , HH.hr_
+    , HH.span_ $
+      [ HH.text "Puzzle State: " 
+      , HH.text $ constructorString state.renderPuzzle
+      , HH.br_
+      ] <> tagAddon
+    ] 
+    <> runTime 
+    <> tupleList 
+    <> pointing 
+    <> bruteForce 
+    <> encodingInfo
+  )
   where
     meta :: MetaBoard
     meta = fst $ unwrapStateful state.renderPuzzle
@@ -380,21 +398,36 @@ makeHCMetaOutput state = HH.div
       else []
       where
         lCount = toUnfoldable meta.tupleCount
+    
+    pointing :: Array (HH.HTML widget input)
+    pointing = if meta.pointing > 0 then
+      [ HH.text ("Pointing Count: " <> show meta.pointing) ]
+      else []
 
     bruteForce :: Array (HH.HTML widget input)
-    bruteForce = if length guesses > 0 then
-      [ HH.text "Brute Force Guesses:"
-      , HH.ul_ guesses
-      ]
-      else []
+    bruteForce =
+      ( if meta.pointing > 0 then 
+          [ HH.br_ ] 
+        else []
+      )
+      <>
+      ( if length guesses > 0 then
+          [ HH.text "Brute Force Guesses:"
+          , HH.ul_ guesses
+          ]
+        else []
+      )
       where 
         guesses = 
-          (if meta.bruteForce.guessed > 0 then
-            [ HH.li_ [ HH.text $ "Good: " <> show meta.bruteForce.guessed ] ]
-            else []) <> 
-          (if meta.bruteForce.backtrack > 0 then
-            [ HH.li_ [ HH.text $ "Bad: " <> show meta.bruteForce.backtrack ] ]
-            else [])
+          ( if meta.bruteForce.guessed > 0 then
+              [ HH.li_ [ HH.text $ "Good: " <> show meta.bruteForce.guessed ] ]
+            else []
+          ) 
+          <> 
+          ( if meta.bruteForce.backtrack > 0 then
+              [ HH.li_ [ HH.text $ "Bad: " <> show meta.bruteForce.backtrack ] ]
+            else []
+          )
 
     encodingInfo :: Array (HH.HTML widget input)
     encodingInfo =

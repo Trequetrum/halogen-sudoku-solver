@@ -33,6 +33,8 @@ import Sudoku.Strategy.NTuple (NTuple, toGroupActions, toTupleIn)
 
 type FindingTupleAlgorithm = Board -> Group -> Error \/ Array NTuple
 
+-- | findTuples is a way to find tuples within a group/subgroup of a given board.
+-- | 
 -- | Tuples typically exist only in the context of a group. 
 -- | The list of cells given here encodes the different combinations of possible options this algorithm 
 -- | searches through. It expects cells to be ordered by size (countOptions).
@@ -40,11 +42,7 @@ type FindingTupleAlgorithm = Board -> Group -> Error \/ Array NTuple
 -- | This ordering affords a few optimisations. Previous matches narrow the search-space for future matches.
 -- | Options and indices for current/previous matches can be ignored when iterating through the rest of the
 -- | possible cells
--- |
--- | A way to find tuples within a group/subgroup of a given board. Tuples here are defined via the number
--- | of options in a possible cell and the number of cells in the group that a predicate returns
--- | true for. If those two values are equal, then the possible cell and the indices of cells (in the board)
--- | are returned
+-- | 
 findTuples :: List OSet -> Board -> Group -> Error \/ Array NTuple
 findTuples optionCombinations board group = 
   find allOptionsSet optionCombinations (groupIndices group) (Right [])
@@ -99,15 +97,15 @@ enforceNaked1Tuples puzzle =
       guard $ effective board action
       pure action
 
--- | Takes a tuple-finding algorithm and returns a strategy applies the returned
--- | tuples. The enforce-application strategy depends on whether the tuples found are
+-- | Takes a tuple-finding algorithm and applies the returned tuples. 
+-- | The enforce-application strategy depends on whether the tuples found are
 -- | Naked or Hidden. 
 -- |
 -- | If the first paramter is true, we assume they are Naked Tuples, otherwise we
 -- | assume they are are Hidden Tuples
 -- |
 enforceTuples :: FindingTupleAlgorithm -> Strategy
-enforceTuples tupleFinder puzzle = case maybeActions of
+enforceTuples tupleFinder puzzle = case tryActions of
   (Left err) -> Invalid err puzzle
   (Right actions)
     | length actions < 1 -> Stable puzzle
@@ -116,8 +114,8 @@ enforceTuples tupleFinder puzzle = case maybeActions of
     board :: Board
     board = snd puzzle
 
-    maybeActions :: Error \/ Array Action
-    maybeActions = concat <$> sequence do 
+    tryActions :: Error \/ Array Action
+    tryActions = concat <$> sequence do 
       group <- groups
       pure do
         tuples <- tupleFinder board group
@@ -126,8 +124,7 @@ enforceTuples tupleFinder puzzle = case maybeActions of
 -- | enforceTuples specialized with a tuple-finding algorithm that finds
 -- | tuples of the given size.
 enforceNTuples :: Int -> Strategy
-enforceNTuples 1 = enforceNaked1Tuples
-enforceNTuples n = enforceTuples $ findNTuples n
+enforceNTuples = findNTuples >>> enforceTuples
 
 -- | enforceTuples specialized with a tuple-finding algorithm that finds
 -- | tuples of any/all sizes
@@ -179,5 +176,5 @@ rollingEnforceTuples inputPuzzle = foldl
 ladderTuples :: Strategy
 ladderTuples = ladderStrats $ NonEmptyArray
   [ enforceNaked1Tuples -- Very effective early on and runs very fast
-  , rollingEnforceTuples -- Optimized, but still pretty heavy, runs last
+  , rollingEnforceTuples -- Optimized, but still pretty heavy
   ]

@@ -91,7 +91,6 @@ clickOption option evt = if ctrlKey evt
   then Force option
   else Toggle option
 
--- We write a function to handle queries when they arise.
 handleQuery :: ∀ a slots m. Query a -> H.HalogenM State Action slots Output m (Maybe a)
 handleQuery (Constrain a) = do
   state <- H.get
@@ -137,17 +136,19 @@ handleAction (Force option) = do
       else handleAction Bounce
     _ -> handleAction Bounce
 
-handleAction (Receive newCell) = do
-  state <- H.get
-  case state of
-    (Constrained stateOption) ->
-      if countOptions newCell == 1 && trustFirstOption newCell == stateOption
-      then handleAction Bounce
-      else H.put $ Unconstrained newCell
-    (Unconstrained stateCell) -> 
-      if stateCell == newCell
-      then handleAction Bounce
-      else H.put $ Unconstrained newCell
+handleAction (Receive newCell) =
+  if countOptions newCell == 1
+  then H.put $ Constrained (trustFirstOption newCell)
+  else do
+    state <- H.get
+    case state of
+      (Constrained stateOption) ->
+        H.put $ Unconstrained newCell
+      (Unconstrained stateCell) -> 
+        if stateCell == newCell
+        then handleAction Bounce
+        else H.put $ Unconstrained newCell
+    
 
 receive :: Input -> Maybe Action
 receive = Just <<< Receive

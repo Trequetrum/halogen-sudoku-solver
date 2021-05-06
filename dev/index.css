@@ -44,6 +44,10 @@
   flex-direction: column;
 }
 
+.ss-actions-container p {
+  margin: 6px 0 2px 0;
+}
+
 .ss-infos-container {
   grid-area: infos;
   display: flex;
@@ -101,13 +105,17 @@
   grid-area: puzzle;
   align-self: center;
   justify-self: center;
-  align-items: center;
+  align-items: flex-start;
   display: flex;
 }
 
 .ss-metaboard-info-readout {
   align-self: flex-start;
-  margin-left: 50px;
+  margin-left: 15px;
+}
+
+.ss-metaboard-info-readout h4 {
+  margin-top: 0;
 }
 
 .ss-metaboard-info-readout p {
@@ -117,6 +125,16 @@
 }
 
 .ss-board-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.ss-board-container h4 {
+  margin-top: 0;
+  text-align: center;
+}
+
+.ss-sudoku-board {
   width: min-content;
   height: min-content;
   display: inline-grid;
@@ -126,4 +144,3 @@
   border-radius: 30px;
   border: solid 15px indigo;
 }
-
