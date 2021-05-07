@@ -24,15 +24,14 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..), snd)
 import Effect.Aff (Aff)
 import Error (Error(..))
-import Stateful (Stateful(..))
+import Stateful (Stateful(..), notAdvancing)
 import Sudoku.Board (Board, batchDropOptions, findIndex, (!!))
 import Sudoku.Index (Index)
 import Sudoku.OSet (OSet, countOptions, toOSet, toggleOSet, trustFirstOption)
 import Sudoku.Option (Option, numOfOptions)
 import Sudoku.Puzzle (Puzzle)
-import Sudoku.Strategy.BasicNTuples (enforceNTuples)
 import Sudoku.Strategy.Common (StatefulStrategy, Strategy, advanceOrFinish, ladderStrats)
-import Sudoku.Strategy.MetaNTuples (ladderOrder, ladderTuples, rollingEnforceNTuples)
+import Sudoku.Strategy.MetaNTuples (ladderOrder, rollingEnforceNTuples)
 import Sudoku.Strategy.Pointing (rollingEnforcePointing)
 import Utility (affFn)
 
@@ -115,7 +114,7 @@ backtrackingBruteForce selector strat = strat >>> bbfRecurse
 -- | Sudoku Puzzle" by Peter Norvig.
 norvigBruteForce :: Strategy
 norvigBruteForce = backtrackingBruteForce
-  selectMinOption (rollingEnforceNTuples 1)
+  selectMinOption (notAdvancing $ rollingEnforceNTuples 1)
 
 -- | Ladder various strategies together into a single strategy.
 -- | Currently uses all the tupleStrats as well as the pointing strat

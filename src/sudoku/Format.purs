@@ -3,13 +3,11 @@ module Sudoku.Format where
 import Prelude
 
 import Data.Array (replicate, splitAt)
-import Data.Array.NonEmpty (length)
 import Data.Int (binary, fromStringAs, toNumber, toStringAs)
 import Data.Maybe (fromMaybe)
 import Data.String (codePointFromChar, fromCodePointArray, joinWith)
 import Data.String as Strings
 import Data.Tuple (Tuple(..), snd)
-import Debug (spy)
 import Math (floor, sqrt, (%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful, constructorString, unwrapStateful)

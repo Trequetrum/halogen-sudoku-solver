@@ -9,7 +9,6 @@
   , "debug"
   , "effect"
   , "either"
-  , "enums"
   , "foldable-traversable"
   , "halogen"
   , "integers"
@@ -27,9 +26,8 @@
   , "transformers"
   , "tuples"
   , "typelevel-prelude"
-  , "unsafe-coerce"
-  , "variant"
   , "web-uievents"
+  , "st"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

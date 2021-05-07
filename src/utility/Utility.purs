@@ -2,14 +2,17 @@ module Utility where
 
 import Prelude
 
+import Control.Monad.ST (foreach)
 import Data.Array (deleteBy, filter, find, foldr, length, nub, nubEq, unsafeIndex, (!!))
+import Data.Array.ST (modify, run, thaw)
 import Data.Int (fromString)
 import Data.Maybe (Maybe(..), isNothing, maybe)
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (sequence)
-import Data.Tuple (Tuple, fst, snd, swap)
+import Data.Tuple (Tuple(..), fst, snd, swap)
 import Effect.Aff (Aff, delay)
 import Partial.Unsafe (unsafePartial)
+
 
 foreign import modifyPerIndex_impl :: ∀ a.
   (∀ b c. Tuple b c -> b) ->
@@ -17,8 +20,8 @@ foreign import modifyPerIndex_impl :: ∀ a.
   Array (Tuple Int (a -> a)) -> 
   Array a -> Array a
 
-modifyPerIndex :: ∀ a. Array (Tuple Int (a -> a)) -> Array a -> Array a
-modifyPerIndex = modifyPerIndex_impl fst snd
+modifyPerIndexFFI :: ∀ a. Array (Tuple Int (a -> a)) -> Array a -> Array a
+modifyPerIndexFFI = modifyPerIndex_impl fst snd
 
 foreign import dropMaskPerIndex_impl ::
   (∀ b c. Tuple b c -> b) ->
@@ -67,15 +70,12 @@ modifyPerIndex foldableActions array = run do
   pure mutableArray
 -}
 
-{--------------
--- Dropping this in favor of a FFI implemention in javascript 
----------------
 modifyPerIndex :: ∀ a. Array (Tuple Int (a -> a)) -> Array a -> Array a
 modifyPerIndex actions array = run do
   mutableArray <- thaw array
   foreach actions \(Tuple index action) -> void $ modify index action mutableArray
   pure mutableArray
--}
+
 
 keyToInt :: ∀ a. Tuple String a -> Maybe (Tuple Int a)
 keyToInt = swap >>> map fromString >>> sequence >>> map swap

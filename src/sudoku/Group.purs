@@ -75,30 +75,37 @@ instance ordGroup :: Ord Group where
 -------------------------------------------------------------------
 -- Group Smart Constructors
 -------------------------------------------------------------------
+-- There are exactly as many groups of each type as their are symbols
+-- in the set of Options. Instead of giving groups a ID of their own
+-- (As I maybe should). I re-use the options as labels for each type
+-- of group. 
+-------------------------------------------------------------------
 
+-- | Get the row corresponding to it's Option Label
 row :: Option -> Group
 row n = Row n $ indicesRow $ indexOf n
 
+-- | Get the column corresponding to it's Option Label
 column :: Option -> Group
 column n = Column n $ indicesCol $ indexOf n
 
+-- | Get the box corresponding to it's Option Label
 box :: Option -> Group
 box n = Box n $ indicesBox $ indexOf n
 
--- | An array of every row of indices
+-- | An array of every row
 rows :: Array Group
 rows = row <$> allOptions
 
--- | An array of every column of indices
+-- | An array of every column
 columns :: Array Group
 columns = column <$> allOptions
 
--- | An array of every box of indices
+-- | An array of every box 
 boxes :: Array Group
 boxes = box <$> allOptions
 
--- | An array of every group of indices, note that every index will
--- | appear once in each type of group
+-- | An array of every group
 groups :: Array Group
 groups = rows <> columns <> boxes
 

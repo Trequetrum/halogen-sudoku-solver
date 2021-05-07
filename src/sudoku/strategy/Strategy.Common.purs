@@ -24,7 +24,7 @@ import Data.Maybe (fromMaybe, isJust)
 import Data.Tuple (snd)
 import Effect.Aff (Aff)
 import Error (Error(..))
-import Stateful (Stateful(..), isInvalid, isSolved, unwrapStateful)
+import Stateful (Stateful(..), isInvalid, isSolved, onlyAdvancing, repeatAdvancing, unwrapStateful)
 import Sudoku.Board (isSolvedIffValid, isValid')
 import Sudoku.Puzzle (Puzzle)
 import Utility (affFn)
@@ -41,12 +41,6 @@ type StatefulStrategy = Stateful Puzzle -> Stateful Puzzle
 -- | so it always returns a Stable Board
 doingNothing :: Strategy
 doingNothing = Stable
-
--- | Turn a Strategy into a StatefulStrategy that will only work on
--- | Advancing puzzles. Other puzzles are left unchanged
-onlyAdvancing :: Strategy -> StatefulStrategy
-onlyAdvancing strat (Advancing puzzle) = strat puzzle
-onlyAdvancing _ statefulPuzzle = statefulPuzzle
 
 -- | This is a StatefulStrategy that checks if a Puzzle is solved or invalid
 stayOrFinish :: StatefulStrategy
@@ -71,15 +65,6 @@ advanceOrFinish p = case stayOrFinish p of
   (Stable a) -> Advancing a
   notStable -> notStable
 
--- | Take a Strategy and repeat it until the strategy returns a stable/finished board
-untilStable :: Strategy -> Strategy
-untilStable strat puzzle = untilStableMeta (onlyAdvancing strat) (strat puzzle)
-
--- | Take a StatefulStrategy and repeat it until the strategy returns a stable/finished board
-untilStableMeta :: StatefulStrategy -> StatefulStrategy
-untilStableMeta strat p@(Advancing _) = untilStableMeta strat $ strat p
-untilStableMeta _ p = p
-
 -- | This is a meta-strategy that creates a new strategy out of an ordered
 -- | list of strategies. The idea is that you order your strategies
 -- | from fastest to slowest, then only perform a slower strategy if
@@ -90,15 +75,7 @@ untilStableMeta _ p = p
 -- | used to check if a strategy has returned a finished board so strategies
 -- | do not need to check if they've solved a board.
 ladderStrats :: NonEmptyArray Strategy -> Strategy
-ladderStrats strats puzzle =
-  (Advancing puzzle) # foldl ladderCompose 
-    (untilStableMeta $ head metaStrats) (tail metaStrats)
-  where
-    ladderCompose :: StatefulStrategy -> StatefulStrategy -> StatefulStrategy
-    ladderCompose acc next = untilStableMeta $ acc >>> advanceOrFinish >>> next
-
-    metaStrats :: NonEmptyArray StatefulStrategy
-    metaStrats = onlyAdvancing <$> strats
+ladderStrats = repeatAdvancing advanceOrFinish
 
 -------------------------------------------------------------------
 -- Experimental Asynchronous Strategies

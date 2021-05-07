@@ -163,6 +163,8 @@ isForced = countOptions >>> eq 1
 -- Formatting for Cells
 -------------------------------------------------------------------
 
+-- | A string with each option in a set
+-- | For example allOptionsSet ({1,2,3,4,5,6,7,8,9}) == "123456789"
 asTokenString :: OSet -> String
 asTokenString set = let 
   mapOption opt = if hasOption opt set 

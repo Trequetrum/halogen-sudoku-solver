@@ -5,7 +5,6 @@ import Prelude
 import Data.Array (concat, filter, foldl, length, (\\))
 import Data.Bifunctor (bimap)
 import Data.Tuple (Tuple(..), fst, snd)
-import Debug (spy)
 import Stateful (Stateful(..), unwrapStateful)
 import Sudoku.Board (Action, batchDropOptions, boardRoot, effective, filterIndices)
 import Sudoku.Group (Group, groupIndices, groups, toGroupsIntersection)

@@ -67,7 +67,7 @@ asString :: Option -> String
 asString (Option 0) = "Ԑ"
 asString option = show option
 
--- | Since options are orderd, you can learn the ordering of an Options
+-- | Since options are orderd, you can learn the ordering of an Option
 -- | forall (x :: Option). allOptions !! (indexOf x) == x
 indexOf :: Option -> Int
 indexOf = coerce >>> (_ - 1 )

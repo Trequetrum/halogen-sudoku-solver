@@ -1,3 +1,4 @@
+-- | Load Sudoku Puzzles from Assets
 module App.Parseboards where
 
 import Prelude
