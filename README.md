@@ -1,7 +1,7 @@
 
 # Buttons that Solve Sudoku Puzzles
 
-Github Pages Address for this repo: https://trequetrum.github.io/halogen-sudoku-solver/ 
+Github Pages Address for this repo: https://trequetrum.github.io/halogen-sudoku-solver/   
 You can see the last deployment date by checking the last commit to the **/docs** folder.
 
 ---------
@@ -13,7 +13,7 @@ This was conceived as a quickly hacked together front-end without much thought t
 * Sometimes it's nice to have buttons for algorithms. 
 * Try different inputs and watch how the output changes.
 
-This project was initially a way to interactively try some of the algorithms written in my purescript Sudoku solver repository. That repository has since been deleted and merged into this project to form a mono-repo and make everything a bit easier to maintain.
+This project was initially a way to interactively try some of the algorithms written in my purescript Sudoku solver repository. That repository has since been deleted and merged into this project to form a mono-repo. This makes everything a bit easier to maintain as this project is no longer in active development.
 
 ## About The Halogen Front-End
 
@@ -37,14 +37,14 @@ The second component is found in `src/sudoku/strategy` and implements a set of s
 * **Puzzle**: Puzzle is a type alias that augments a Sudoku board with meta-information. So, for example, the NTuple algorithm remembers which parts of the board it has previously searched and then doesn't search those regions again. The Brute Force strategy documents how many guesses it has to make before finding a solution. This could be implemented via a state monad instead so that instead of `Tuple MetaBoard Board`, we'd see `State Board`. Though, in this case, the meta-information is specific to a board and not **just** the algorithm. For example, this information is displayed in the Halogen front-end and is as much an output of any given Sudoku strategy as the updated board-state. Because this "stateful" information is so closely linked to an already established data structure the state weaving is essentially done for free.
 * **Stateful**: A functor that we can appropriate to add meta-information to the running of a strategy. So a strategy gets defined as `Puzzle -> Stateful Puzzle` (Though originally, it was `Board -> Stateful Board`). Everything that Stateful does for a strategy could be accomplished via meta-information in a puzzle (as described above), though the separation of concerns here is nice.
 
-  `Strategy.Common` has a function called `onlyAdvancing` that acts as a sort of restricted version of `bindFlipped` for `Stateful Puzzles`. You can see the similarity in the type signatures if we could specialise them for Stateful:
+  The Stateful module has a function called `onlyAdvancing` that acts as a sort of restricted version of `bindFlipped` for `Stateful`. You can see the similarity in the type signatures if we could specialise bindFlipped for Stateful:
 
   ```purescript
   bindFlipped   :: ∀ a b. (a -> Stateful b) -> Stateful a -> Stateful b
   onlyAdvancing :: ∀ a  . (a -> Stateful a) -> Stateful a -> Stateful a
   ```
 
-  This lets Stateful have a lot (but not all) of the power of a monad without actually being a monad.
+  This lets Stateful have a lot (but not all) of the power of a monad without actually being a monad. You can bind a stateful computation so long as its type is unchanged.
 * **Strategy.Common**: This holds tasks that are likely to be common for all strategies. It can turn any strategy into one that checks if the updated board has been solved. It can turn any strategy into one that runs itself continuously until no more changes appear (The puzzle is stable). Stuff like that. Perhaps the most interesting is `ladderStrats` which combines an array of strategies into a single strategy. It does this by composing the strategies together, but starting again at the beginning if any of the strategies update the board. 
 * **NTuples**: This is a strategy with it's own folder. [Here is a link](NTupleAlgorithm.md) that explains this strategy in some detail.
 * **Pointing**: Pointing is when the state of one group points into the state of another. For example: If all the 2s in the second box happen to be in row 2, then the rest of row 2 cannot have any 2s. Most instances of pointing are actually covered by `NTuples` and the meta-information from `NTuples` can be used to reduce the state-space for pointing.
