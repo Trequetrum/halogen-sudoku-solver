@@ -100,54 +100,51 @@ handleQuery (Constrain a) = do
   pure (Just a)
 
 handleAction :: ∀ slots m. Action → H.HalogenM State Action slots Output m Unit
-handleAction Bounce = do
-  pure unit
-
-handleAction Unconstrain = do
-  state <- H.get
-  case state of
-    (Constrained stateOption) ->
-      H.put $ Unconstrained $ toOSet stateOption
-    _ -> handleAction Bounce
-
-handleAction (Toggle option) = do
-  state <- H.get
-  case state of
-    (Unconstrained stateCell) -> do
-      let update = toggleOptions (toOSet option) stateCell
-      let output = if hasOption option stateCell
-        then ToggleOff option
-        else ToggleOn option
-      H.put $ updateState update
-      H.raise output
-    _ -> handleAction Bounce
-
-handleAction (Force option) = do
-  state <- H.get
-  case state of
-    (Unconstrained stateCell) -> 
-      if hasOption option stateCell 
-      then do
-        H.put $ Constrained option
-        H.raise $ SetTo $ toOSet option
-      else if countOptions stateCell == 1
-      then do
-        H.put $ Constrained $ fromMaybe invalidOption $ firstOption stateCell
-      else handleAction Bounce
-    _ -> handleAction Bounce
-
-handleAction (Receive newCell) =
-  if countOptions newCell == 1
-  then H.put $ Constrained (trustFirstOption newCell)
-  else do
+handleAction = case _ of 
+  Bounce -> do
+    pure unit
+  Unconstrain -> do
     state <- H.get
     case state of
       (Constrained stateOption) ->
-        H.put $ Unconstrained newCell
+        H.put $ Unconstrained $ toOSet stateOption
+      _ -> handleAction Bounce
+  (Toggle option) -> do
+    state <- H.get
+    case state of
+      (Unconstrained stateCell) -> do
+        let update = toggleOptions (toOSet option) stateCell
+        let output = if hasOption option stateCell
+          then ToggleOff option
+          else ToggleOn option
+        H.put $ updateState update
+        H.raise output
+      _ -> handleAction Bounce
+  (Force option) -> do
+    state <- H.get
+    case state of
       (Unconstrained stateCell) -> 
-        if stateCell == newCell
-        then handleAction Bounce
-        else H.put $ Unconstrained newCell
+        if hasOption option stateCell 
+        then do
+          H.put $ Constrained option
+          H.raise $ SetTo $ toOSet option
+        else if countOptions stateCell == 1
+        then do
+          H.put $ Constrained $ fromMaybe invalidOption $ firstOption stateCell
+        else handleAction Bounce
+      _ -> handleAction Bounce
+  (Receive newCell) -> 
+    if countOptions newCell == 1
+    then H.put $ Constrained (trustFirstOption newCell)
+    else do
+      state <- H.get
+      case state of
+        (Constrained _) ->
+          H.put $ Unconstrained newCell
+        (Unconstrained stateCell) -> 
+          if stateCell == newCell
+          then handleAction Bounce
+          else H.put $ Unconstrained newCell
     
 
 receive :: Input -> Maybe Action

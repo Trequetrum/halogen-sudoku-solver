@@ -22,12 +22,12 @@
   , "psci-support"
   , "safe-coerce"
   , "spec"
+  , "st"
   , "strings"
   , "transformers"
   , "tuples"
   , "typelevel-prelude"
   , "web-uievents"
-  , "st"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
