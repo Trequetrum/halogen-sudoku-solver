@@ -1,3 +1,11 @@
+-- | This is an opinionated UI wrapper for my Purescript Sudoku Solver
+-- | This creates a sudoku board, displays meta-information, and allows
+-- | various ways to select some puzzles to work with.
+-- |
+-- | Most of the high-level functions that the sudoku solver exposes are
+-- | able to be evaluated through this Halogen-based web-UI.
+-- |
+-- | This component is fully self-contained (no input and no output)
 module App.HC.BoardRunner where
 
 import Prelude
@@ -40,10 +48,28 @@ import Sudoku.Strategy.Pointing (rollingEnforcePointing)
 import Type.Prelude (Proxy(..))
 import Utility (affFn, inc)
 
+-- | The only other component we need is the individual Cells. They're Id by
+-- | Index, and otherwise we let the Cell define it's own interface.
 type Slots = ( cell :: HCCell.Slot Index )
 
-_cell = Proxy :: Proxy "cell"
+-- | Type level string proxy for the slot value of cell
+_cell :: Proxy "cell"
+_cell = Proxy
+-- _cell = Proxy :: Proxy "cell"
 
+-- | Board Runner state nesseary for what is rendered.
+-- | The sudoku solver doesn't track how long it takes to run any of its
+-- | algorithms, so that's done separately here.
+-- |
+-- | * computing is a boolean that tells us whether the mouse should have 
+-- |   a waiting symbol.
+-- | * puzzleName is the title of the puzzle and depends on context (For 
+-- |   example: which puzzle was selected, if any)
+-- | * userPuzzle: All state the user had input into the puzzle
+-- | * renderPuzzle: An amalgomation of user and algorithm inputs into the
+-- |   puzzle
+-- | * stratTime: How long did it take the last strategy to run?
+-- |
 type State = 
   { computing :: Boolean
   , puzzleName :: String
@@ -52,6 +78,13 @@ type State =
   , stratTime :: Maybe Milliseconds
   }
 
+-- | Most actions defer to some implementation in the sudoku solver. See
+-- | that documentation for details.
+-- | * Blank - Return to the board's initial state
+-- | * Reset - Undo any state-changes realised with solving algorithms
+-- | * HandleCell - Handle all state changes made by cells in the board
+-- | * ... see sudoku solver implementation
+-- |  
 data Action
   = Blank
   | Reset
@@ -67,6 +100,8 @@ data Action
   | Enforce4Tuples
   | EnforcePointing
 
+-- | Create the top level component, wires together the various event 
+-- | listeners including how this component is rendered.
 component :: ∀ query input output m. MonadAff m => H.Component query input output m
 component =
   H.mkComponent
@@ -75,6 +110,8 @@ component =
     , eval: H.mkEval H.defaultEval { handleAction = handleAction }
     }
 
+-- | The starting state of the board is a black board with all options for 
+-- | every cell.
 initialState :: State
 initialState = 
   { computing : false
@@ -87,6 +124,7 @@ initialState =
     untouchedPuzzle :: Stateful Puzzle
     untouchedPuzzle = Stable $ fromBoard unconstrainedBoard
 
+-- | Logic for how to enter a new puzzle into component state
 setNewPuzzle :: String -> Puzzle -> State -> State
 setNewPuzzle label puzzle state = state 
   { puzzleName = label
@@ -94,6 +132,19 @@ setNewPuzzle label puzzle state = state
   , renderPuzzle = Stable puzzle
   }
 
+-- | Currently descibes how this componat is rendered. 
+-- |  * Sudoku board (81 cells in a grid)
+-- |  * Sudoku board meta-information
+-- |    * Some from the algorithms, some kept locally
+-- |  * Pre-generated sudoku puzzles
+-- |    * Easy
+-- |    * hard
+-- |    * hardest
+-- |  * Buttons that run algorithms or otherwise alter the board state
+-- |  * Some text describing how to use the UI.
+-- |
+-- | TODO: Update with some UX in mind to make this all a bit nicer to 
+-- | interact with.
 render :: ∀ m. State -> H.ComponentHTML Action Slots m
 render state = HH.div
   [ HP.classes [ HH.ClassName "ss-solver-layout" ] ]
@@ -117,32 +168,37 @@ render state = HH.div
   , otherInfo
   ]
 
+-- | Logic for how each Action is handled (See the Action ADT)
 handleAction :: ∀ output m. MonadAff m => Action → 
   H.HalogenM State Action Slots output m Unit
-handleAction Blank = H.modify_ \_ -> initialState
-handleAction Reset = H.modify_ \st -> st { renderPuzzle = st.userPuzzle }
-handleAction (NewPuzzle label puzzle) = H.modify_ \st -> setNewPuzzle label puzzle st
+handleAction = case _ of 
+  Blank -> H.modify_ \_ -> initialState
+  Reset -> H.modify_ \st -> st { renderPuzzle = st.userPuzzle }
+  (NewPuzzle label puzzle) -> H.modify_ \st -> setNewPuzzle label puzzle st
 
-handleAction (HandleCell index output) = case output of
-  (ToggleOn option) -> H.modify_ $ updateStateCell setOptions (toOSet option) index
-  (ToggleOff option) -> H.modify_ $ updateStateCell dropOptions (toOSet option) index
-  (SetTo cell) -> H.modify_ $ updateStateCell const cell index
+  (HandleCell index output) -> case output of
+    (ToggleOn option) -> H.modify_ $ updateStateCell setOptions (toOSet option) index
+    (ToggleOff option) -> H.modify_ $ updateStateCell dropOptions (toOSet option) index
+    (SetTo cell) -> H.modify_ $ updateStateCell const cell index
 
-handleAction Solve = handleStrategy (affFn ladderBruteForce)
-handleAction AsyncSolve = handleStrategy affLadderBruteForce
-handleAction NorvigSolve = handleStrategy (affFn norvigBruteForce)
-handleAction LadderStrats = handleStrategy (affFn ladderAllStrats)
-handleAction Enforce1Tuples = handleStrategy (affFn $ rollingEnforceNTuples 1)
-handleAction Enforce2Tuples = handleStrategy (affFn $ rollingEnforceNTuples 2)
-handleAction Enforce3Tuples = handleStrategy (affFn $ rollingEnforceNTuples 3)
-handleAction Enforce4Tuples = handleStrategy (affFn $ rollingEnforceNTuples 4)
-handleAction EnforcePointing = handleStrategy (affFn $ rollingEnforcePointing)
+  Solve -> handleStrategy (affFn ladderBruteForce)
+  AsyncSolve -> handleStrategy affLadderBruteForce
+  NorvigSolve -> handleStrategy (affFn norvigBruteForce)
+  LadderStrats -> handleStrategy (affFn ladderAllStrats)
+  Enforce1Tuples -> handleStrategy (affFn $ rollingEnforceNTuples 1)
+  Enforce2Tuples -> handleStrategy (affFn $ rollingEnforceNTuples 2)
+  Enforce3Tuples -> handleStrategy (affFn $ rollingEnforceNTuples 3)
+  Enforce4Tuples -> handleStrategy (affFn $ rollingEnforceNTuples 4)
+  EnforcePointing -> handleStrategy (affFn $ rollingEnforcePointing)
 
 
 ------------------------------------------------------------------------
 -- Action Helpers
 ------------------------------------------------------------------------
 
+-- | Helper function describes how to react to events raised by the board Cells
+-- | These are all user-events and as such update both the user and render puzzles.
+-- | This updates the puzzle name to only if there currently isn't one.
 updateStateCell :: (OSet -> OSet -> OSet) -> OSet -> Index -> State -> State
 updateStateCell update with index state = state 
   { puzzleName = 
@@ -156,6 +212,11 @@ updateStateCell update with index state = state
     updateFn :: Stateful Puzzle -> Stateful Puzzle
     updateFn puzzle = map (modifyAtIndex (update with) index) <$> puzzle
 
+-- | Helper function wraps any Sudoku Solver Strategy so it can be run and displayed in
+-- | this component. Even though the Sudoku Solver is pure and doesn't require any effects,
+-- | some strategies play around with running in the Aff monad (to ensure the website doesn't
+-- | hang). 
+-- | Currently this is dealt with unifomrly by lifting all strategies into Aff.
 handleStrategy :: ∀ output m.  
   MonadAff m => (Puzzle -> Aff (Stateful Puzzle)) -> 
   H.HalogenM State Action Slots output m Unit
@@ -176,6 +237,7 @@ handleStrategy strat = do
 -- Action Buttons
 ------------------------------------------------------------------------
 
+-- | How to render the buttons that update the sudoku
 hCActionsUi :: ∀ widget. HH.HTML widget Action
 hCActionsUi = HH.div
   [ HP.classes [ HH.ClassName "ss-actions-container" ] ]
@@ -198,6 +260,8 @@ hCActionsUi = HH.div
   , makeActionButton EnforcePointing "Pointing"
   ]
 
+-- | A single button wraps an MDC-Web button and registers an event
+-- | listener for when it's clicked
 makeActionButton :: ∀ widget. Action -> String -> HH.HTML widget Action
 makeActionButton action strng = HH.button
   [ HE.onClick \_ -> action 
@@ -213,6 +277,8 @@ makeActionButton action strng = HH.button
 -- Pre-build Puzzle Buttons
 ------------------------------------------------------------------------
 
+-- | Buttons that let the user select pre-genereated puzzles. Along with
+-- | hopefully self-explanitory headers for their relative difficulty 
 selectAPuzzle :: ∀ widget. HH.HTML widget Action
 selectAPuzzle = HH.div 
   [ HP.classes [ HH.ClassName "ss-select-sudoku" ] ] 
@@ -224,7 +290,8 @@ selectAPuzzle = HH.div
   , HH.div_ (mapWithIndex (selectPuzzleButton "Hardest Sudoku") hardestPuzzles)
   ]
 
--- | 
+-- | A single button that selects a pre-generated puzzle
+-- |
 -- | <button class="mdc-button mdc-button--outlined mdc-button--raised">
 -- |   <span class="mdc-button__label">Outlined Button</span>
 -- | </button>
@@ -378,7 +445,7 @@ makeHCMetaOutput state = HH.div
     tagAddon :: Array (HH.HTML widget input)
     tagAddon = case state.renderPuzzle of 
       (Invalid err _) -> [ HH.text (name err <> ":"), HH.br_, HH.text (message err) ]
-      otherwise -> []
+      _ -> []
     
     runTime :: Array (HH.HTML widget input)
     runTime = case state.stratTime of
