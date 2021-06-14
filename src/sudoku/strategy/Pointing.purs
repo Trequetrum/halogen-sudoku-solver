@@ -11,7 +11,7 @@ import Sudoku.Group (Group, groupIndices, groups, toGroupsIntersection)
 import Sudoku.OSet (allOptionsSet, asOptions, dropOptions, hasOption, toOSet)
 import Sudoku.Puzzle (Puzzle)
 import Sudoku.Strategy.Common (Strategy)
-import Sudoku.Strategy.MetaNTuples (tupleState)
+import Sudoku.Strategy.NTupleStrat (tupleState)
 
 pointActions :: Puzzle -> Group -> Tuple Int (Array Action)
 pointActions puzzle group = Tuple (length actionsPerOption) (concat actionsPerOption)
@@ -35,7 +35,7 @@ rollingEnforcePointing inputPuzzle = foldl
   enforce (Stable inputPuzzle) groups
   where
     enforce :: Stateful Puzzle -> Group -> Stateful Puzzle
-    enforce ip@(Invalid _ sPuzzle) _ = ip
+    enforce ip@(Invalid _ _) _ = ip
     enforce sop@(Solved _) _ = sop
     enforce sPuzzle group = let
 

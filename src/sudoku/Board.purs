@@ -123,8 +123,9 @@ fromString = split (Pattern "")
     "Input string contained invalid number of characters")
     $ fromCells $ makeStarterCell <$> ints)
   where
+    keepVals :: Array String
     keepVals = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "."]
-    fullLength = boardSize * boardSize
+
     makeStarterCell :: Int -> OSet
     makeStarterCell n
       | n > 0 && n <= boardSize = toOSet $ boundedOption (n - 1)
@@ -197,11 +198,13 @@ noForcedPeerDuplicates board = all allUniqueEq do
 noForcedDuplicates :: Board -> Group -> Maybe Error
 noForcedDuplicates board group = 
   case foldl folder (Right invalidOption) singletons of
-  Left err -> Just err
-  otherwise -> Nothing
+    Left err -> Just err
+    _ -> Nothing
   where
     singletons :: Array Option 
-    singletons = mapMaybe (boardIndex board >>> justWhen isForced >>> bindFlipped firstOption) (groupIndices group)
+    singletons = mapMaybe 
+      (boardIndex board >>> justWhen isForced >>> bindFlipped firstOption) 
+      (groupIndices group)
     
     folder :: Error \/ Option -> Option -> Error \/ Option
     folder (Right option) nOption = 
@@ -224,8 +227,8 @@ isValid = both allCellsValid noForcedPeerDuplicates
 isValid' :: Board -> Maybe Error
 isValid' board = case (allCellsValid' board), (noForcedPeerDuplicates' board) of
   Nothing, Nothing -> Nothing
-  _, jer@(Just err) -> jer
-  jer@(Just err), Nothing -> jer
+  _, err@(Just _) -> err
+  err@(Just _), Nothing -> err
 
 -- | Check if a board has been solved
 isSolved :: Board -> Boolean

@@ -31,7 +31,7 @@ import Sudoku.OSet (OSet, countOptions, toOSet, toggleOSet, trustFirstOption)
 import Sudoku.Option (Option, numOfOptions)
 import Sudoku.Puzzle (Puzzle)
 import Sudoku.Strategy.Common (StatefulStrategy, Strategy, advanceOrFinish, ladderStrats)
-import Sudoku.Strategy.MetaNTuples (ladderOrder, rollingEnforceNTuples)
+import Sudoku.Strategy.NTupleStrat (ladderOrder, rollingEnforceNTuples)
 import Sudoku.Strategy.Pointing (rollingEnforcePointing)
 import Utility (affFn)
 

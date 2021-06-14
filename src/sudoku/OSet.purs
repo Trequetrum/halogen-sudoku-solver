@@ -17,6 +17,7 @@ module Sudoku.OSet
   , setOptions
   , dropOption
   , dropOptions
+  , toggleOption
   , toggleOptions
   , toggleOSet
   , asOptions

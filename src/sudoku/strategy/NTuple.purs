@@ -60,7 +60,7 @@ toTupleIn board group indices options = do
   pure case nakedTuple, hiddenTuple of 
     Nothing, t@(Just _)  -> t
     t@(Just _), Nothing  -> t
-    (Just nT), (Just hT) -> Just nT{ tupleType = Both }
+    (Just nT), (Just _) -> Just nT{ tupleType = Both }
     Nothing, Nothing     -> Nothing
   where
     nakedMatches :: Array Index
@@ -147,8 +147,8 @@ toGroupActions board {tupleType, group, options, position} = case tupleType of
     nakedIndices = groupIndices group \\ position
 
 -- | Return an array of the given tuple along with any generated tuples
-peerExpand :: Board -> NTuple -> Array NTuple
-peerExpand board tuple@{tupleType, group, options, position} = do
+peerExpand :: NTuple -> Array NTuple
+peerExpand tuple@{group, options, position} = do
   eGroup <- toGroupsIntersection position
   pure 
     if eGroup == group

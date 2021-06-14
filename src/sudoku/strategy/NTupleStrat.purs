@@ -3,7 +3,7 @@
 -- | This implementation remembers the results of previous computations and attempts to not re-do
 -- | the same work on future iterations. Likely to be pretty helpfull in combination with brute force
 -- |
-module Sudoku.Strategy.MetaNTuples where
+module Sudoku.Strategy.NTupleStrat where
 
 import Prelude
 
@@ -13,7 +13,7 @@ import Data.Bifunctor (bimap)
 import Data.Either (Either(..))
 import Data.Either.Nested (type (\/))
 import Data.Foldable (foldl, foldr)
-import Data.Map (Map, alter, lookup, singleton)
+import Data.Map (Map, alter, fromFoldableWith, lookup, singleton, unionWith)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), fst, snd)
@@ -33,18 +33,29 @@ import Sudoku.Strategy.NTuple (NTuple, NTupleType(..), nTupleSize, peerExpand, t
 updateTupleMeta :: Array NTuple -> MetaBoard -> MetaBoard
 updateTupleMeta [] board = board
 updateTupleMeta tuples board = board
-  { tupleState = foldr 
-      (\tuple -> alter (alterState tuple) tuple.group) 
-      board.tupleState
-      tuples
+  { tupleState = unionWith mergeGroup board.tupleState newTupleState
   , tupleCount = foldr 
       (\tuple -> alter (alterCount tuple) (nTupleSize tuple))
       board.tupleCount
       tuples
   }
   where
-    alterCount 
-      :: NTuple
+    mappableNTuple :: NTuple -> Tuple Group (Map Int (Tuple OSet (Array Index)))
+    mappableNTuple t@{ group, options, position } =
+      Tuple group $ singleton (nTupleSize t) (Tuple options position)
+
+    newTupleState :: Map Group (Map Int (Tuple OSet (Array Index)))
+    newTupleState = fromFoldableWith mergeGroup $ mappableNTuple <$> tuples
+
+    mergeGroup ::
+         Map Int (Tuple OSet (Array Index))
+      -> Map Int (Tuple OSet (Array Index))
+      -> Map Int (Tuple OSet (Array Index))
+    mergeGroup = unionWith \(Tuple lS lI) (Tuple rS rI) ->
+      Tuple (setOptions lS rS) (union lI rI) 
+
+    alterCount :: 
+         NTuple
       -> Maybe { naked :: Int, hidden :: Int, both :: Int, gen :: Int } 
       -> Maybe { naked :: Int, hidden :: Int, both :: Int, gen :: Int }
     alterCount tuple Nothing = alterCount tuple $ Just 
@@ -58,14 +69,6 @@ updateTupleMeta tuples board = board
       Naked ->  n { naked  = n.naked  + 1 }
       Both ->   n { both   = n.both   + 1 }
       Hidden -> n { hidden = n.hidden + 1 }
-
-    alterState :: NTuple -> Maybe (Map Int (Tuple OSet (Array Index))) -> Maybe (Map Int (Tuple OSet (Array Index)))
-    alterState tuple Nothing = Just $ singleton (nTupleSize tuple) (Tuple tuple.options tuple.position)
-    alterState tuple (Just sizeMap) = Just $ alter (alterSizeMap tuple) (nTupleSize tuple) sizeMap
-
-    alterSizeMap :: NTuple -> Maybe (Tuple OSet (Array Index)) -> Maybe (Tuple OSet (Array Index))
-    alterSizeMap tuple Nothing = Just $ Tuple tuple.options tuple.position
-    alterSizeMap tuple (Just (Tuple optns posns)) = Just $ Tuple (setOptions optns tuple.options) (union posns tuple.position)
 
 -- | Gets the options (as encoded in a cell) and the Indices for which tuples have already 
 -- | been discovered
@@ -99,7 +102,7 @@ tupleState size group metaboard =
 findNTuples :: Puzzle -> Int -> Group -> Error \/ Array NTuple
 findNTuples puzzle size group = do
   tuples <- catMaybes <$> sequence ( toTupleIn board group indices <$> setList )
-  pure ( tuples >>= peerExpand board )
+  pure ( tuples >>= peerExpand )
   where
     board :: Board
     board = snd puzzle
@@ -125,7 +128,7 @@ rollingEnforceNTuples size inputPuzzle = foldl
   enforce (Stable inputPuzzle) groups
   where
     enforce :: Stateful Puzzle -> Group -> Stateful Puzzle
-    enforce ip@(Invalid _ sPuzzle) _ = ip
+    enforce ip@(Invalid _ _) _ = ip
     enforce sop@(Solved _) _ = sop
     enforce sPuzzle group = let
 
