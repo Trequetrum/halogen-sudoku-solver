@@ -53,7 +53,7 @@ The second component is found in `src/sudoku/strategy` and implements a set of s
   Some numbers for just over 2,000,000 randomly generated puzzles:
   * About 1/5,000 puzzles take over 5,000ms for the norvigBruteForce to solve (One took just under 15minutes!)
   * Removing outliers, norvigBruteForce averages 53ms per puzzle.
-  * The slowest ladderBruteForce puzzle took 4,721 seconds to solve.
+  * The slowest ladderBruteForce puzzle took 9721ms to solve.
   * Removing outliers, ladderBruteForce averages 290ms per puzzle.
 
 
