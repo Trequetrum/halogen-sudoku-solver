@@ -9,14 +9,14 @@ module Sudoku.Puzzle where
 import Prelude
 
 import Data.Either.Nested (type (\/))
-import Data.Map (Map, fromFoldable)
+import Data.Map (Map, empty)
 import Data.Tuple (Tuple(..))
 import Error (Error)
 import Sudoku.Board (Board)
 import Sudoku.Board as Brd
-import Sudoku.OSet (OSet)
 import Sudoku.Group (Group)
 import Sudoku.Index (Index)
+import Sudoku.OSet (OSet)
 
 type MetaBoard = 
   { tupleState :: Map Group (Map Int (Tuple OSet (Array Index)))
@@ -37,8 +37,8 @@ type Puzzle = Tuple MetaBoard Board
 
 blankMetaBoard :: MetaBoard
 blankMetaBoard = 
-  { tupleState: fromFoldable []
-  , tupleCount: fromFoldable []
+  { tupleState: empty
+  , tupleCount: empty
   , pointing: 0
   , bruteForce: 
     { guessed: 0

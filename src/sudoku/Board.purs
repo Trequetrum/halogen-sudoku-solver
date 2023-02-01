@@ -50,7 +50,7 @@ where
 import Prelude
 
 import Control.Bind (bindFlipped)
-import Control.MonadZero (guard)
+import Control.Alternative (guard)
 import Data.Array (all, any, filter, foldl, length, mapMaybe, mapWithIndex, unsafeIndex, (..))
 import Data.Array as Array
 import Data.Either (Either(..), note)
@@ -61,7 +61,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), split)
 import Data.Tuple (Tuple(..))
 import Error (Error(..))
-import Math (sqrt)
+import Data.Number (sqrt)
 import Partial.Unsafe (unsafePartial)
 import Safe.Coerce (coerce)
 import Sudoku.OSet (allOptionsSet, asTokenString, firstOption, isForced, notDisjoint, toOSet)
@@ -102,7 +102,7 @@ boardRoot = Ints.floor $ sqrt $ Ints.toNumber boardSize
 unconstrainedBoard :: Board
 unconstrainedBoard = coerce $ const allOptionsSet <$> 1 .. (boardSize * boardSize)
 
--- | Attempt to construct a board ffrom an array of cells
+-- | Attempt to construct a board from an array of cells
 fromCells :: Array OSet -> Maybe Board
 fromCells cells = if all OSets.isValid cells && length cells == boardSize * boardSize 
   then Just $ coerce cells

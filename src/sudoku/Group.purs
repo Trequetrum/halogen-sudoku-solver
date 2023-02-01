@@ -29,7 +29,7 @@ import Prelude
 import Data.Array (filter, foldl, head, intersect, nub, tail)
 import Data.Int as Ints
 import Data.Maybe (Maybe(..), fromMaybe)
-import Math (sqrt)
+import Data.Number (sqrt)
 import Sudoku.Index (toInt)
 import Sudoku.Index.Internal (Index, indicesBox, indicesCol, indicesRow)
 import Sudoku.Option (Option, allOptions, asString, boundedOption, indexOf, numOfOptions)

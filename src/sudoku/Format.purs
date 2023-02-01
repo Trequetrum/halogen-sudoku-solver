@@ -8,7 +8,7 @@ import Data.Maybe (fromMaybe)
 import Data.String (codePointFromChar, fromCodePointArray, joinWith)
 import Data.String as Strings
 import Data.Tuple (Tuple(..), snd)
-import Math (floor, sqrt, (%))
+import Data.Number (floor, sqrt, (%))
 import Safe.Coerce (coerce)
 import Stateful (Stateful, constructorString, unwrapStateful)
 import Sudoku.Board (Board, indexedCells, mapBoard)

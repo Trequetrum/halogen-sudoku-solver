@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Array ((..))
 import Data.Int as Ints
-import Math (sqrt)
+import Data.Number (sqrt)
 import Safe.Coerce (coerce)
 import Sudoku.Option (numOfOptions)
 

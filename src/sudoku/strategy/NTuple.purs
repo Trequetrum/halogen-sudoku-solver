@@ -5,7 +5,8 @@ module Sudoku.Strategy.NTuple where
 
 import Prelude
 
-import Control.MonadZero (guard)
+import Control.Alternative (guard)
+-- import Control.MonadZero (guard)
 import Data.Array (elem, length, (\\))
 import Data.Either (Either(..))
 import Data.Either.Nested (type (\/))

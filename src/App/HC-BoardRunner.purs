@@ -31,7 +31,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Math (floor, sqrt, (%))
+import Data.Number (floor, sqrt, (%))
 import Stateful (Stateful(..), constructorString, unwrapStateful)
 import Sudoku.Board (Board, modifyAtIndex, unconstrainedBoard, (!!))
 import Sudoku.Format (beforeSudokuBorder, boardToForcedString, boardToIntString)
@@ -265,11 +265,7 @@ hCActionsUi = HH.div
 makeActionButton :: ∀ widget. Action -> String -> HH.HTML widget Action
 makeActionButton action strng = HH.button
   [ HE.onClick \_ -> action 
-  , HP.classes 
-    [ HH.ClassName "mdc-button"
-    , HH.ClassName "mdc-button--outlined"
-    , HH.ClassName "mdc-button--raised"
-    ] 
+  , HP.classes [ HH.ClassName "button-7"] 
   ]
   [ HH.text strng ]
 
@@ -282,11 +278,11 @@ makeActionButton action strng = HH.button
 selectAPuzzle :: ∀ widget. HH.HTML widget Action
 selectAPuzzle = HH.div 
   [ HP.classes [ HH.ClassName "ss-select-sudoku" ] ] 
-  [ HH.h4_ [ HH.text "Select An Easy Sudoku" ]
+  [ HH.h4_ [ HH.text "Select A Prefab Easy Sudoku" ]
   , HH.div_(mapWithIndex (selectPuzzleButton "Easy Sudoku") easyPuzzles)
-  , HH.h4_ [ HH.text "Select A Hard Sudoku" ]
+  , HH.h4_ [ HH.text "Select A Prefab Hard Sudoku" ]
   , HH.div_(mapWithIndex (selectPuzzleButton "Hard Sudoku") hardPuzzles)
-  , HH.h4_ [ HH.text "Select A Hardest Sudoku" ]
+  , HH.h4_ [ HH.text "Select A Prefab Hardest Sudoku" ]
   , HH.div_ (mapWithIndex (selectPuzzleButton "Hardest Sudoku") hardestPuzzles)
   ]
 
@@ -299,11 +295,7 @@ selectAPuzzle = HH.div
 selectPuzzleButton :: ∀ widget. String -> Int -> Puzzle -> HH.HTML widget Action
 selectPuzzleButton boardPrefixName i x = HH.button
   [ HE.onClick \_ -> NewPuzzle (boardPrefixName <> " # " <> buttonLabel) x
-  , HP.classes 
-    [ HH.ClassName "mdc-button"
-    , HH.ClassName "mdc-button--outlined"
-    , HH.ClassName "mdc-button--raised"
-    ]
+  , HP.classes [ HH.ClassName "button-8" ]
   ]
   [ HH.span 
     [ HP.classes [ HH.ClassName "mdc-button__label" ] ]

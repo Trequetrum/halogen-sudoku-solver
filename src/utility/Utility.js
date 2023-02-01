@@ -7,7 +7,7 @@
 //*   to mutate an array at each given index
 //* actOn: Array that should be copied and mutated.
 //***********
-exports.modifyPerIndex_impl = 
+export const modifyPerIndex_impl = 
        function(fst){
 return function(snd){
 return function(actions){
@@ -31,7 +31,7 @@ return function(actOn){
 //*   to bitMask an array at each given index
 //* actOn: Array that should be copied and mutated.
 //***********
-exports.dropMaskPerIndex_impl = 
+export const dropMaskPerIndex_impl = 
        function(fst){
 return function(snd){
 return function(actions){
